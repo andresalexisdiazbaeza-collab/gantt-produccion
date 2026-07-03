@@ -1,0 +1,28 @@
+# Blueprint Render — API + frontend en un solo servicio
+# Ver DEPLOY.md para instrucciones paso a paso
+
+services:
+  - type: web
+    name: gantt-produccion
+    runtime: python
+    plan: free
+    buildCommand: chmod +x scripts/render-build.sh && ./scripts/render-build.sh
+    startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: GANTT_JWT_SECRET
+        generateValue: true
+      - key: GANTT_APP_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gantt-produccion-db
+          property: connectionString
+
+databases:
+  - name: gantt-produccion-db
+    plan: free
+    databaseName: gantt_produccion
+    user: gantt

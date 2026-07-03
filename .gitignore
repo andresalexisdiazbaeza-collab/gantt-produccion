@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.local
+
+# Node
+node_modules/
+frontend/dist/
+
+# Base de datos local
+*.db
+data/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+
+# Cursor / assets locales
+.cursor/
