@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { api } from '../api/client'
 import GanttChart from '../components/GanttChart'
+import GanttThemeToggle from '../components/GanttThemeToggle'
+import { useGanttTheme } from '../hooks/useGanttTheme'
 import { useI18n } from '../i18n/I18nProvider'
 import type { OptimizePreview } from '../types'
 
@@ -36,6 +38,7 @@ function MetricCard({ label, current, optimized, invert, currentLabel, optimized
 
 export default function OptimizePage() {
   const { t } = useI18n()
+  const { theme, setTheme } = useGanttTheme()
   const [preview, setPreview] = useState<OptimizePreview | null>(null)
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -140,7 +143,8 @@ export default function OptimizePage() {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <GanttThemeToggle theme={theme} onChange={setTheme} />
             {(['both', 'current', 'optimized'] as const).map((v) => (
               <button
                 key={v}
@@ -156,10 +160,10 @@ export default function OptimizePage() {
 
           <div className={`grid gap-6 ${view === 'both' ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
             {(view === 'both' || view === 'current') && (
-              <GanttChart machines={preview.current_machines} title={t('optimizeCurrent')} />
+              <GanttChart machines={preview.current_machines} title={t('optimizeCurrent')} theme={theme} />
             )}
             {(view === 'both' || view === 'optimized') && (
-              <GanttChart machines={preview.optimized_machines} title={t('optimizeOptimized')} />
+              <GanttChart machines={preview.optimized_machines} title={t('optimizeOptimized')} theme={theme} />
             )}
           </div>
 

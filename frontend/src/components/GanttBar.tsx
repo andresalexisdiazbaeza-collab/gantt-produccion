@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useI18n } from '../i18n/I18nProvider'
 import { formatGanttBarLabel, formatGanttProductLabel } from '../utils/ganttLabel'
+import { GANTT_THEMES, type GanttTheme } from '../utils/ganttTheme'
 
 export interface GanttBarItem {
   order_number?: string
@@ -18,10 +19,12 @@ interface GanttBarProps {
   item: GanttBarItem
   className: string
   style: React.CSSProperties
+  theme?: GanttTheme
 }
 
-export default function GanttBar({ item, className, style }: GanttBarProps) {
+export default function GanttBar({ item, className, style, theme = 'day' }: GanttBarProps) {
   const { t } = useI18n()
+  const th = GANTT_THEMES[theme]
   const ref = useRef<HTMLDivElement>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
 
@@ -53,19 +56,19 @@ export default function GanttBar({ item, className, style }: GanttBarProps) {
       </div>
       {tooltip && createPortal(
         <div
-          className="fixed z-[9999] pointer-events-none rounded-lg bg-slate-900 text-white text-xs shadow-xl border border-slate-700 px-3 py-2 max-w-sm"
+          className={`fixed z-[9999] pointer-events-none rounded-lg text-xs px-3 py-2 max-w-sm ${th.tooltip}`}
           style={{ left: tooltip.x, top: tooltip.y }}
           role="tooltip"
         >
           {orderLabel && (
-            <p><span className="text-slate-400">{t('colOrder')}:</span> {orderLabel}</p>
+            <p><span className={th.tooltipLabel}>{t('colOrder')}:</span> {orderLabel}</p>
           )}
           {item.customer && (
-            <p><span className="text-slate-400">{t('colCustomer')}:</span> {item.customer}</p>
+            <p><span className={th.tooltipLabel}>{t('colCustomer')}:</span> {item.customer}</p>
           )}
-          <p><span className="text-slate-400">{t('ganttTooltipProduct')}:</span> {formatGanttProductLabel(item)}</p>
+          <p><span className={th.tooltipLabel}>{t('ganttTooltipProduct')}:</span> {formatGanttProductLabel(item)}</p>
           {item.start_date && item.finish_date && (
-            <p><span className="text-slate-400">{t('ganttTooltipDates')}:</span> {item.start_date} → {item.finish_date}</p>
+            <p><span className={th.tooltipLabel}>{t('ganttTooltipDates')}:</span> {item.start_date} → {item.finish_date}</p>
           )}
         </div>,
         document.body,
