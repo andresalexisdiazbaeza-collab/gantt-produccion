@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { downloadFromApi } from '../utils/export'
+import ExportButtons from '../components/ExportButtons'
 import { useI18n } from '../i18n/I18nProvider'
 import type { ProductionItem } from '../types'
 
 export default function CompletedOrders() {
   const { t } = useI18n()
   const [items, setItems] = useState<ProductionItem[]>([])
-  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     api.getItems('terminada').then(setItems)
@@ -17,17 +16,7 @@ export default function CompletedOrders() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{t('completedTitle')}</h2>
-        <button
-          onClick={async () => {
-            setDownloading(true)
-            try { await downloadFromApi('/export/orders?status=terminada', 'terminadas.xlsx') }
-            finally { setDownloading(false) }
-          }}
-          disabled={downloading}
-          className="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-slate-900 disabled:opacity-50"
-        >
-          {downloading ? '...' : t('downloadExcel')}
-        </button>
+        <ExportButtons basePath="/export/orders?status=terminada" filenameBase="ordenes_terminadas" />
       </div>
       <div className="bg-white rounded-xl border overflow-auto">
         <table className="w-full text-sm">

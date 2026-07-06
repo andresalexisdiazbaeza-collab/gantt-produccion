@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import ExportButtons from '../components/ExportButtons'
 import { api } from '../api/client'
 import GanttChart from '../components/GanttChart'
 import GanttThemeToggle from '../components/GanttThemeToggle'
@@ -86,7 +87,8 @@ export default function OptimizePage() {
             {t('optimizeDesc')}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <ExportButtons basePath="/export/optimize" filenameBase="optimizacion" />
           <button
             onClick={loadPreview}
             disabled={loading}

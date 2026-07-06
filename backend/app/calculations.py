@@ -31,6 +31,41 @@ def calc_finish_date(start_date: Optional[date], working_days: Optional[float]) 
     return add_workdays(start_date, working_days)
 
 
+def calc_delivery_compliance(
+    finish_date: Optional[date],
+    delivery_date: Optional[date],
+) -> dict[str, Any]:
+    """Compare planned finish vs offered delivery date."""
+    if not delivery_date:
+        return {
+            "delivery_status": "no_date",
+            "is_late": False,
+            "days_late": 0,
+            "days_margin": 0,
+        }
+    if not finish_date:
+        return {
+            "delivery_status": "pending",
+            "is_late": False,
+            "days_late": 0,
+            "days_margin": 0,
+        }
+    delta = (finish_date - delivery_date).days
+    if delta > 0:
+        return {
+            "delivery_status": "late",
+            "is_late": True,
+            "days_late": delta,
+            "days_margin": 0,
+        }
+    return {
+        "delivery_status": "on_time",
+        "is_late": False,
+        "days_late": 0,
+        "days_margin": abs(delta),
+    }
+
+
 def apply_calculations(
     *,
     piece_length: Optional[float],

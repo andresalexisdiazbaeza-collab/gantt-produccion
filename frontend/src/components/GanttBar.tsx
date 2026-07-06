@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useI18n } from '../i18n/I18nProvider'
 import { formatGanttBarLabel, formatGanttProductLabel } from '../utils/ganttLabel'
+import { formatDeliveryStatus } from '../utils/deliveryStatus'
 import { GANTT_THEMES, type GanttTheme } from '../utils/ganttTheme'
 
 export interface GanttBarItem {
@@ -12,6 +13,11 @@ export interface GanttBarItem {
   matriz_mm?: number | null
   start_date?: string | null
   finish_date?: string | null
+  delivery_date?: string | null
+  delivery_status?: string | null
+  is_late?: boolean
+  days_late?: number
+  days_margin?: number
   sequence?: number
 }
 
@@ -40,6 +46,10 @@ export default function GanttBar({ item, className, style, theme = 'day' }: Gant
     ? `#${item.sequence} ${item.order_number ?? ''}`.trim()
     : item.order_number
 
+  const compliance = formatDeliveryStatus(item, t)
+  const barText = formatGanttBarLabel(item)
+  const lateSuffix = item.is_late && item.days_late ? ` +${item.days_late}d` : ''
+
   return (
     <>
       <div
@@ -52,7 +62,8 @@ export default function GanttBar({ item, className, style, theme = 'day' }: Gant
         onBlur={hideTooltip}
         tabIndex={0}
       >
-        {formatGanttBarLabel(item)}
+        {barText}
+        {lateSuffix && <span className="opacity-90">{lateSuffix}</span>}
       </div>
       {tooltip && createPortal(
         <div
@@ -69,6 +80,17 @@ export default function GanttBar({ item, className, style, theme = 'day' }: Gant
           <p><span className={th.tooltipLabel}>{t('ganttTooltipProduct')}:</span> {formatGanttProductLabel(item)}</p>
           {item.start_date && item.finish_date && (
             <p><span className={th.tooltipLabel}>{t('ganttTooltipDates')}:</span> {item.start_date} → {item.finish_date}</p>
+          )}
+          {item.delivery_date && (
+            <p><span className={th.tooltipLabel}>{t('ganttTooltipDelivery')}:</span> {item.delivery_date}</p>
+          )}
+          {item.delivery_date && (
+            <p>
+              <span className={th.tooltipLabel}>{t('ganttTooltipCompliance')}:</span>{' '}
+              <span className={compliance.className.replace('font-semibold', '').replace('font-medium', '')}>
+                {compliance.label}
+              </span>
+            </p>
           )}
         </div>,
         document.body,

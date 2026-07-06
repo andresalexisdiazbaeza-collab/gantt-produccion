@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { CompleteExportButtons } from './ExportButtons'
 import { useAuth } from '../auth/usePermissions'
 import type { AppModule } from '../auth/types'
 import { useI18n } from '../i18n/I18nProvider'
@@ -98,6 +99,7 @@ export default function Layout() {
               <option key={o.code} value={o.code}>{o.label}</option>
             ))}
           </select>
+          <CompleteExportButtons className="pt-2 border-t border-slate-700" />
           <button
             type="button"
             onClick={logout}

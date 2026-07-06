@@ -95,6 +95,10 @@ class ItemOut(BaseModel):
     mts_per_shift: Optional[float]
     shifts: Optional[int]
     finish_date: Optional[date]
+    delivery_status: Optional[str] = None
+    is_late: bool = False
+    days_late: int = 0
+    days_margin: int = 0
     created_at: Optional[datetime]
     completed_at: Optional[datetime]
     model_config = ConfigDict(from_attributes=True)

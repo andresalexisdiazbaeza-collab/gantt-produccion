@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from .calculations import apply_calculations, calc_remaining_length
+from .calculations import apply_calculations, calc_delivery_compliance, calc_remaining_length
 from .models import ItemStatus, MachineConfig, MaterialConfig, ProductionItem
 
 
@@ -86,6 +86,7 @@ def item_to_dict(item: ProductionItem) -> Dict[str, Any]:
         "finish_date": item.finish_date,
         "created_at": item.created_at,
         "completed_at": item.completed_at,
+        **calc_delivery_compliance(item.finish_date, item.delivery_date),
     }
 
 

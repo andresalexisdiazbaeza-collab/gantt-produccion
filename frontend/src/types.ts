@@ -115,6 +115,10 @@ export interface ProductionItem {
   mts_per_shift: number | null
   shifts: number | null
   finish_date: string | null
+  delivery_status?: 'on_time' | 'late' | 'no_date' | 'pending' | string | null
+  is_late?: boolean
+  days_late?: number
+  days_margin?: number
   created_at: string | null
   completed_at: string | null
 }

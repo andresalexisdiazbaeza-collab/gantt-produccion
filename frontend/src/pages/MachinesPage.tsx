@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ExportButtons from '../components/ExportButtons'
 import { api } from '../api/client'
 import { useI18n } from '../i18n/I18nProvider'
 import type { Machine } from '../types'
@@ -49,7 +50,10 @@ export default function MachinesPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
-      <h2 className="text-2xl font-bold">{t('machinesTitle')}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">{t('machinesTitle')}</h2>
+        <ExportButtons basePath="/export/machines" filenameBase="maquinas" />
+      </div>
       <p className="text-sm text-slate-600">
         {t('machinesFormula')}
         <br />

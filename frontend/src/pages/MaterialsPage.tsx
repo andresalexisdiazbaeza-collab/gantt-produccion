@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ExportButtons from '../components/ExportButtons'
 import { api } from '../api/client'
 import { useI18n } from '../i18n/I18nProvider'
 import type { Material } from '../types'
@@ -33,7 +34,10 @@ export default function MaterialsPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-lg">
-      <h2 className="text-2xl font-bold">{t('materialsTitle')}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">{t('materialsTitle')}</h2>
+        <ExportButtons basePath="/export/materials" filenameBase="materiales" />
+      </div>
       <p className="text-sm text-slate-600">{t('materialsFormula')}</p>
 
       <div className="bg-white rounded-xl border divide-y">

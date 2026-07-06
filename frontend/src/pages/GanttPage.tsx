@@ -5,7 +5,7 @@ import GanttFiltersBar from '../components/GanttFilters'
 import GanttThemeToggle from '../components/GanttThemeToggle'
 import GanttTimeline, { type GanttTimelineItem } from '../components/GanttTimeline'
 import { emptyGanttFilters } from '../utils/ganttFilters'
-import { downloadFromApi } from '../utils/export'
+import ExportButtons from '../components/ExportButtons'
 import { applyGanttFilters, uniqueOptions } from '../utils/ganttFilters'
 import { useGanttTheme } from '../hooks/useGanttTheme'
 import { useI18n } from '../i18n/I18nProvider'
@@ -19,7 +19,6 @@ export default function GanttPage() {
   const [items, setItems] = useState<ProductionItem[]>([])
   const [filters, setFilters] = useState(emptyGanttFilters())
   const [error, setError] = useState('')
-  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     api.getItems('activa').then(setItems).catch((e) => setError(e.message))
@@ -28,6 +27,20 @@ export default function GanttPage() {
   const options = useMemo(() => uniqueOptions(items), [items])
   const filtered = useMemo(() => applyGanttFilters(items, filters), [items, filters])
   const scheduled = filtered.filter((i) => i.start_date && i.finish_date && i.machine_name)
+
+  const complianceSummary = useMemo(() => {
+    let onTime = 0
+    let late = 0
+    let noDate = 0
+    let pending = 0
+    for (const item of filtered) {
+      if (!item.delivery_date) { noDate++; continue }
+      if (!item.finish_date) { pending++; continue }
+      if (item.is_late) late++
+      else onTime++
+    }
+    return { onTime, late, noDate, pending }
+  }, [filtered])
 
   const { machines, minDate, days } = useMemo(() => {
     const chartItems = scheduled.length > 0 ? scheduled : filtered.filter((i) => i.machine_name && i.start_date && i.finish_date)
@@ -55,22 +68,15 @@ export default function GanttPage() {
           matriz_mm: item.matriz_mm,
           start_date: item.start_date!,
           finish_date: item.finish_date!,
-          is_late: Boolean(item.delivery_date && item.finish_date! > item.delivery_date),
+          delivery_date: item.delivery_date,
+          delivery_status: item.delivery_status,
+          is_late: item.is_late ?? Boolean(item.delivery_date && item.finish_date! > item.delivery_date),
+          days_late: item.days_late ?? 0,
+          days_margin: item.days_margin ?? 0,
         })),
     }))
     return { machines: machineRows, minDate: minD, days: differenceInDays(maxD, minD) + 1 }
   }, [scheduled, filtered])
-
-  const download = async () => {
-    setDownloading(true)
-    try {
-      await downloadFromApi('/export/gantt', 'gantt.xlsx')
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t('error'))
-    } finally {
-      setDownloading(false)
-    }
-  }
 
   if (error) return <div className="p-6 text-red-600">{error}</div>
 
@@ -83,13 +89,7 @@ export default function GanttPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <GanttThemeToggle theme={theme} onChange={setTheme} />
-          <button
-            onClick={download}
-            disabled={downloading}
-            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-900 disabled:opacity-50"
-          >
-            {downloading ? t('downloading') : t('ganttDownload')}
-          </button>
+          <ExportButtons basePath="/export/gantt" filenameBase="gantt" />
         </div>
       </div>
 
@@ -101,6 +101,25 @@ export default function GanttPage() {
         onChange={setFilters}
         onReset={() => setFilters(emptyGanttFilters())}
       />
+
+      <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-2.5 py-1">
+          {t('deliveryOnTime')}: {complianceSummary.onTime}
+        </span>
+        <span className="bg-red-50 text-red-800 border border-red-200 rounded-lg px-2.5 py-1">
+          {t('deliveryLate')}: {complianceSummary.late}
+        </span>
+        {complianceSummary.pending > 0 && (
+          <span className="bg-slate-50 text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1">
+            {t('deliveryPendingCalc')}: {complianceSummary.pending}
+          </span>
+        )}
+        {complianceSummary.noDate > 0 && (
+          <span className="bg-slate-50 text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1">
+            {t('deliveryNoDate')}: {complianceSummary.noDate}
+          </span>
+        )}
+      </div>
 
       {scheduled.length === 0 ? (
         <div className="bg-white rounded-xl border p-8 text-center text-slate-500">

@@ -11,8 +11,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import ExportButtons from '../components/ExportButtons'
 import { api } from '../api/client'
-import { downloadFromApi } from '../utils/export'
 import { useI18n } from '../i18n/I18nProvider'
 import type { DashboardStats } from '../types'
 
@@ -26,7 +26,6 @@ export default function Dashboard() {
   const { t } = useI18n()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [error, setError] = useState('')
-  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     api.getDashboard().then(setStats).catch((e) => setError(e.message))
@@ -55,18 +54,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('dashboardTitle')}</h2>
-        <button
-          onClick={async () => {
-            setDownloading(true)
-            try { await downloadFromApi('/export/dashboard', 'dashboard.xlsx') }
-            catch (e) { setError(e instanceof Error ? e.message : t('error')) }
-            finally { setDownloading(false) }
-          }}
-          disabled={downloading}
-          className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-900 disabled:opacity-50"
-        >
-          {downloading ? t('downloading') : t('dashboardDownload')}
-        </button>
+        <ExportButtons basePath="/export/dashboard" filenameBase="dashboard" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">

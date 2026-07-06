@@ -4,8 +4,9 @@ import { api } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import GanttFiltersBar from '../components/GanttFilters'
 import { applyGanttFilters, emptyGanttFilters, uniqueOptions, type GanttFilterState } from '../utils/ganttFilters'
-import { downloadFromApi } from '../utils/export'
+import ExportButtons from '../components/ExportButtons'
 import { useI18n } from '../i18n/I18nProvider'
+import { formatDeliveryStatus } from '../utils/deliveryStatus'
 import type { Machine, ProductionItem } from '../types'
 
 export default function ActiveOrders() {
@@ -18,7 +19,6 @@ export default function ActiveOrders() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState<number | null>(null)
-  const [downloading, setDownloading] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
 
   const load = useCallback(() => {
@@ -124,18 +124,7 @@ export default function ActiveOrders() {
               {deletingAll ? '...' : t('btnDeleteAll')}
             </button>
           )}
-          <button
-            onClick={async () => {
-              setDownloading(true)
-              try { await downloadFromApi('/export/orders?status=activa', 'ordenes.xlsx') }
-              catch (e) { setError(e instanceof Error ? e.message : t('error')) }
-              finally { setDownloading(false) }
-            }}
-            disabled={downloading}
-            className="text-sm bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-900 disabled:opacity-50"
-          >
-            {downloading ? '...' : t('downloadExcel')}
-          </button>
+          <ExportButtons basePath="/export/orders?status=activa" filenameBase="ordenes_activas" />
           <span className="text-sm text-slate-500">{t('itemsOf', { filtered: filtered.length, total: items.length })}</span>
         </div>
       </div>
@@ -180,6 +169,7 @@ export default function ActiveOrders() {
               <th className="p-2">{t('colFinish')}</th>
               <th className="p-2">{t('colDays')}</th>
               <th className="p-2">{t('colDelivery')}</th>
+              <th className="p-2">{t('colDeliveryStatus')}</th>
               <th className="p-2">{t('colNotes')}</th>
               {canModifyItem('complete') && <th className="p-2"></th>}
             </tr>
@@ -273,6 +263,16 @@ export default function ActiveOrders() {
                 <td className="p-2 text-xs">{item.finish_date ?? t('noData')}</td>
                 <td className="p-2 text-xs" title={t('colRemainingM')}>{item.working_days?.toFixed(2) ?? t('noData')}</td>
                 <td className="p-2 text-xs">{item.delivery_date ?? t('noData')}</td>
+                <td className="p-2 text-xs whitespace-nowrap">
+                  {(() => {
+                    const status = formatDeliveryStatus(item, t)
+                    return (
+                      <span className={status.className} title={status.title}>
+                        {status.label}
+                      </span>
+                    )
+                  })()}
+                </td>
                 <td className="p-2 min-w-40">
                   {canModifyItem('notes') ? (
                   <input
