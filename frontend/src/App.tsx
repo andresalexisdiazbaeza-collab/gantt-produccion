@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import ProtectedLayout from './components/ProtectedLayout'
+import ModuleGuard from './components/ModuleGuard'
 import ActiveOrders from './pages/ActiveOrders'
 import CompletedOrders from './pages/CompletedOrders'
 import Dashboard from './pages/Dashboard'
@@ -24,16 +25,18 @@ export default function App() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedLayout />}>
           <Route element={<Layout />}>
-            <Route path="cuenta" element={<AccountPage />} />
-            <Route path="usuarios" element={<UsersAdminPage />} />
-            <Route index element={<Dashboard />} />
-            <Route path="gantt" element={<GanttPage />} />
-            <Route path="optimizar" element={<OptimizePage />} />
-            <Route path="ordenes" element={<ActiveOrders />} />
-            <Route path="importar" element={<ImportPage />} />
-            <Route path="terminadas" element={<CompletedOrders />} />
-            <Route path="materiales" element={<MaterialsPage />} />
-            <Route path="maquinas" element={<MachinesPage />} />
+            <Route element={<ModuleGuard />}>
+              <Route path="cuenta" element={<AccountPage />} />
+              <Route path="usuarios" element={<UsersAdminPage />} />
+              <Route index element={<Dashboard />} />
+              <Route path="gantt" element={<GanttPage />} />
+              <Route path="optimizar" element={<OptimizePage />} />
+              <Route path="ordenes" element={<ActiveOrders />} />
+              <Route path="importar" element={<ImportPage />} />
+              <Route path="terminadas" element={<CompletedOrders />} />
+              <Route path="materiales" element={<MaterialsPage />} />
+              <Route path="maquinas" element={<MachinesPage />} />
+            </Route>
           </Route>
         </Route>
       </Routes>

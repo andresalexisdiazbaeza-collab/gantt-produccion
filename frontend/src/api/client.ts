@@ -1,4 +1,4 @@
-import type { AuthUser } from '../auth/types'
+import type { AuthUser, UserPermissions } from '../auth/types'
 import type { DashboardStats, ImportResult, Machine, Material, OptimizePreview, PlanningImportResult, ProductionItem } from '../types'
 
 const BASE = import.meta.env.VITE_API_URL ?? '/api'
@@ -87,7 +87,56 @@ export const api = {
     display_name: string
     email: string | null
     active: boolean
+    permissions: UserPermissions
   }>>('/auth/users'),
+
+  getPermissionsSchema: () => request<{
+    modules: string[]
+    items: string[]
+    roles: string[]
+    defaults: Record<string, UserPermissions>
+  }>('/auth/permissions/schema'),
+
+  createUser: (data: {
+    username: string
+    password: string
+    role: string
+    display_name: string
+    email?: string | null
+    permissions?: UserPermissions
+  }) =>
+    request<{
+      username: string
+      role: string
+      display_name: string
+      email: string | null
+      active: boolean
+      permissions: UserPermissions
+    }>('/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
+  updateUser: (username: string, data: {
+    role?: string
+    display_name?: string
+    email?: string | null
+    active?: boolean
+    permissions?: UserPermissions
+  }) =>
+    request<{
+      username: string
+      role: string
+      display_name: string
+      email: string | null
+      active: boolean
+      permissions: UserPermissions
+    }>(`/auth/users/${encodeURIComponent(username)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
 
   adminResetPassword: (username: string, new_password?: string) =>
     request<{ message: string }>('/auth/admin/reset-password', {

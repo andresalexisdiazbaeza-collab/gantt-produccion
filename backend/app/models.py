@@ -32,6 +32,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(150), unique=True, index=True)
+    permissions_json: Mapped[Optional[str]] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

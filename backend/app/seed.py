@@ -2,6 +2,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from .auth_utils import hash_password
+from .permissions import default_permissions_for_role, save_user_permissions
 from .database import engine
 from .holidays import slovak_holidays_for_year
 from .models import MachineConfig, MaterialConfig, SlovakHoliday, User
@@ -59,6 +60,10 @@ def migrate_schema(db: Session) -> None:
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(150)"))
                 conn.commit()
+        if "permissions_json" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN permissions_json TEXT"))
+                conn.commit()
     if "production_items" in inspector.get_table_names():
         cols = {c["name"] for c in inspector.get_columns("production_items")}
         if "notes" not in cols:
@@ -100,6 +105,7 @@ def seed_database(db: Session) -> None:
 
     if db.query(User).count() == 0:
         for username, role, display_name, password, email in DEFAULT_USERS:
+            perms = default_permissions_for_role(role)
             db.add(
                 User(
                     username=username,
@@ -107,13 +113,17 @@ def seed_database(db: Session) -> None:
                     display_name=display_name,
                     email=email,
                     password_hash=hash_password(password),
+                    permissions_json=save_user_permissions(perms),
                     active=True,
                 )
             )
     else:
-        for username, _role, _display_name, _password, email in DEFAULT_USERS:
+        for username, role, _display_name, _password, email in DEFAULT_USERS:
             user = db.query(User).filter(User.username == username).first()
-            if user and not user.email:
-                user.email = email
+            if user:
+                if not user.email:
+                    user.email = email
+                if not user.permissions_json:
+                    user.permissions_json = save_user_permissions(default_permissions_for_role(user.role))
 
     db.commit()

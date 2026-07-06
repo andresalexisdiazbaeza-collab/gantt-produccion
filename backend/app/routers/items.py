@@ -6,10 +6,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..auth_utils import PLANNING_ROLES
 from ..database import get_db
-from ..deps import get_current_user, require_planning_access
+from ..deps import get_current_user
 from ..models import ItemStatus, ProductionItem, User
+from ..permissions import can_modify_item_field, can_modify_module
 from ..schemas import ItemOut, ItemUpdate
 from ..services import item_to_dict, recalculate_item
 
@@ -17,15 +17,30 @@ router = APIRouter(prefix="/items", tags=["items"])
 
 PLANNING_FIELDS = frozenset({"machine_id", "start_date", "pieces", "piece_length"})
 
+FIELD_PERMISSION_MAP = {
+    "machine_id": "machine",
+    "start_date": "start_date",
+    "pieces": "pieces",
+    "piece_length": "piece_length",
+    "notes": "notes",
+    "meters_produced": "meters_produced",
+    "comments": "notes",
+}
+
+
+def _check_field_modify(user: User, payload_key: str) -> None:
+    perm_key = FIELD_PERMISSION_MAP.get(payload_key)
+    if perm_key and not can_modify_item_field(user, perm_key):
+        raise HTTPException(403, f"No tienes permiso para modificar {perm_key}")
+
 
 def _apply_item_update(item: ProductionItem, data: ItemUpdate, user: User) -> None:
     payload = data.model_dump(exclude_unset=True)
     if not payload:
         return
 
-    restricted = PLANNING_FIELDS.intersection(payload.keys())
-    if restricted and user.role not in PLANNING_ROLES:
-        raise HTTPException(403, "Solo admin y production pueden modificar máquina, fechas o cantidades")
+    for key in payload:
+        _check_field_modify(user, key)
 
     if "machine_id" in payload:
         item.machine_id = payload["machine_id"]
@@ -75,8 +90,10 @@ def list_items(
 def delete_all_items(
     status: Optional[str] = Query(None, description="activa | terminada | omitir para todas"),
     db: Session = Depends(get_db),
-    _user: User = Depends(require_planning_access),
+    user: User = Depends(get_current_user),
 ):
+    if not can_modify_item_field(user, "delete_all"):
+        raise HTTPException(403, "No tienes permiso para borrar órdenes")
     q = db.query(ProductionItem)
     if status:
         q = q.filter(ProductionItem.status == status)
@@ -123,8 +140,10 @@ def update_item(
 def complete_item(
     item_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_planning_access),
+    user: User = Depends(get_current_user),
 ):
+    if not can_modify_item_field(user, "complete"):
+        raise HTTPException(403, "No tienes permiso para marcar órdenes como terminadas")
     item = db.get(ProductionItem, item_id)
     if not item:
         raise HTTPException(404, "Ítem no encontrado")
@@ -139,8 +158,10 @@ def complete_item(
 def reactivate_item(
     item_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_planning_access),
+    user: User = Depends(get_current_user),
 ):
+    if not can_modify_module(user, "completed"):
+        raise HTTPException(403, "No tienes permiso para reactivar órdenes")
     item = db.get(ProductionItem, item_id)
     if not item:
         raise HTTPException(404, "Ítem no encontrado")

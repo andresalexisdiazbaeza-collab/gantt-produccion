@@ -6,7 +6,8 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from .auth_utils import PLANNING_ROLES, decode_token
+from .auth_utils import decode_token
+from .permissions import can_manage_users, can_modify_module
 from .database import get_db
 from .models import User
 
@@ -29,12 +30,18 @@ def get_current_user(
 
 
 def require_planning_access(user: User = Depends(get_current_user)) -> User:
-    if user.role not in PLANNING_ROLES:
-        raise HTTPException(403, "Solo admin y production pueden realizar esta acción")
+    if not can_modify_module(user, "active_orders") and not can_modify_module(user, "import"):
+        raise HTTPException(403, "No tienes permiso de modificación en planificación")
     return user
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(403, "Solo admin puede realizar esta acción")
+    return user
+
+
+def require_user_management(user: User = Depends(get_current_user)) -> User:
+    if not can_manage_users(user):
+        raise HTTPException(403, "Solo admin y production con permiso de usuarios pueden gestionar usuarios")
     return user

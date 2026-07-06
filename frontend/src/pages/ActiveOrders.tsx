@@ -10,7 +10,7 @@ import type { Machine, ProductionItem } from '../types'
 
 export default function ActiveOrders() {
   const { t } = useI18n()
-  const { canPlan } = useAuth()
+  const { canModifyItem, canView } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<ProductionItem[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
@@ -53,7 +53,8 @@ export default function ActiveOrders() {
   }
 
   const updateNumeric = (id: number, field: 'pieces' | 'piece_length', raw: string, current: number | null | undefined) => {
-    if (!canPlan) return
+    const perm = field === 'pieces' ? 'pieces' : 'piece_length'
+    if (!canModifyItem(perm)) return
     const value = parseFloat(raw)
     if (!raw.trim() || Number.isNaN(value) || value <= 0) return
     if (current !== null && current !== undefined && Math.abs(current - value) < 0.0001) return
@@ -78,14 +79,14 @@ export default function ActiveOrders() {
   }
 
   const complete = async (id: number) => {
-    if (!canPlan || !confirm(t('confirmComplete'))) return
+    if (!canModifyItem('complete') || !confirm(t('confirmComplete'))) return
     const updated = await api.completeItem(id)
     setItems((prev) => prev.filter((i) => i.id !== id))
     void updated
   }
 
   const deleteAll = async () => {
-    if (!canPlan || !confirm(t('confirmDeleteAll'))) return
+    if (!canModifyItem('delete_all') || !confirm(t('confirmDeleteAll'))) return
     setDeletingAll(true)
     setError('')
     setSuccess('')
@@ -110,10 +111,10 @@ export default function ActiveOrders() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{t('activeOrdersTitle')}</h2>
         <div className="flex items-center gap-3">
-          {canPlan && (
+          {canView('optimize') && (
             <Link to="/optimizar" className="text-sm text-amber-600 hover:underline">{t('optimizeLink')}</Link>
           )}
-          {canPlan && (
+          {canModifyItem('delete_all') && (
             <button
               type="button"
               onClick={deleteAll}
@@ -180,7 +181,7 @@ export default function ActiveOrders() {
               <th className="p-2">{t('colDays')}</th>
               <th className="p-2">{t('colDelivery')}</th>
               <th className="p-2">{t('colNotes')}</th>
-              {canPlan && <th className="p-2"></th>}
+              {canModifyItem('complete') && <th className="p-2"></th>}
             </tr>
           </thead>
           <tbody>
@@ -194,7 +195,7 @@ export default function ActiveOrders() {
                 <td className="p-2">{item.matriz_mm?.toFixed(1) ?? t('noData')}</td>
                 <td className="p-2">{item.meshes != null ? item.meshes : t('noData')}</td>
                 <td className="p-2">
-                  {canPlan ? (
+                  {canModifyItem('pieces') ? (
                     <input
                       key={`pieces-${item.id}-${item.pieces}`}
                       type="number"
@@ -208,7 +209,7 @@ export default function ActiveOrders() {
                   ) : (item.pieces ?? t('noData'))}
                 </td>
                 <td className="p-2">
-                  {canPlan ? (
+                  {canModifyItem('piece_length') ? (
                     <input
                       key={`length-${item.id}-${item.piece_length}`}
                       type="number"
@@ -227,6 +228,7 @@ export default function ActiveOrders() {
                   {item.total_length?.toFixed(1) ?? t('noData')}
                 </td>
                 <td className="p-2">
+                  {canModifyItem('meters_produced') ? (
                   <input
                     key={`meters-${item.id}-${item.meters_produced ?? 0}`}
                     type="number"
@@ -237,12 +239,13 @@ export default function ActiveOrders() {
                     disabled={saving === item.id}
                     onBlur={(e) => updateMetersProduced(item.id, e.target.value, item.meters_produced, item.total_length)}
                   />
+                  ) : (item.meters_produced ?? 0)}
                 </td>
                 <td className="p-2 font-medium bg-amber-50 text-xs" title={t('colRemainingM')}>
                   {item.remaining_length?.toFixed(1) ?? item.total_length?.toFixed(1) ?? t('noData')}
                 </td>
                 <td className="p-2">
-                  {canPlan ? (
+                  {canModifyItem('machine') ? (
                     <select
                       className="border rounded px-2 py-1 text-xs"
                       value={item.machine_id ?? ''}
@@ -257,7 +260,7 @@ export default function ActiveOrders() {
                   ) : (item.machine_name ?? t('noData'))}
                 </td>
                 <td className="p-2">
-                  {canPlan ? (
+                  {canModifyItem('start_date') ? (
                     <input
                       type="date"
                       className="border rounded px-2 py-1 text-xs"
@@ -271,6 +274,7 @@ export default function ActiveOrders() {
                 <td className="p-2 text-xs" title={t('colRemainingM')}>{item.working_days?.toFixed(2) ?? t('noData')}</td>
                 <td className="p-2 text-xs">{item.delivery_date ?? t('noData')}</td>
                 <td className="p-2 min-w-40">
+                  {canModifyItem('notes') ? (
                   <input
                     key={`notes-${item.id}-${item.notes ?? ''}`}
                     type="text"
@@ -280,8 +284,9 @@ export default function ActiveOrders() {
                     disabled={saving === item.id}
                     onBlur={(e) => updateNotes(item.id, e.target.value, item.notes)}
                   />
+                  ) : (item.notes ?? t('noData'))}
                 </td>
-                {canPlan && (
+                {canModifyItem('complete') && (
                   <td className="p-2">
                     <button
                       onClick={() => complete(item.id)}

@@ -1,7 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, setAuthToken } from '../api/client'
-import type { AuthUser } from './types'
-import { canPlan, isAdmin } from './types'
+import {
+  canManageUsers,
+  canModifyItem,
+  canModifyModule,
+  canPlan,
+  canViewModule,
+  isAdmin,
+  type AppModule,
+  type AuthUser,
+  type ItemPermissionField,
+} from './types'
+import { AuthContext, type AuthContextValue } from './authContext'
 
 const STORAGE_KEY = 'gantt-auth'
 
@@ -9,19 +19,6 @@ interface StoredAuth {
   token: string
   user: AuthUser
 }
-
-interface AuthContextValue {
-  user: AuthUser | null
-  token: string | null
-  loading: boolean
-  login: (username: string, password: string) => Promise<void>
-  logout: () => void
-  refreshUser: () => Promise<void>
-  canPlan: boolean
-  isAdmin: boolean
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 function readStored(): StoredAuth | null {
   try {
@@ -80,7 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (stored?.token) persist({ token: stored.token, user: u })
   }, [persist])
 
-  const value = useMemo(
+  const canView = useCallback((module: AppModule) => canViewModule(user, module), [user])
+  const canModify = useCallback((module: AppModule) => canModifyModule(user, module), [user])
+  const canModifyItemField = useCallback((field: ItemPermissionField) => canModifyItem(user, field), [user])
+
+  const value = useMemo<AuthContextValue>(
     () => ({
       user,
       token,
@@ -90,15 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       canPlan: user ? canPlan(user.role) : false,
       isAdmin: user ? isAdmin(user.role) : false,
+      canView,
+      canModify,
+      canModifyItem: canModifyItemField,
+      canManageUsers: canManageUsers(user),
     }),
-    [user, token, loading, login, logout, refreshUser],
+    [user, token, loading, login, logout, refreshUser, canView, canModify, canModifyItemField],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}
+export { useAuth } from './usePermissions'

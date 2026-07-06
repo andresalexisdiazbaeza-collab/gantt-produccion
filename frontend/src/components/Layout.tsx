@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuth } from '../auth/AuthProvider'
+import { useAuth } from '../auth/usePermissions'
+import type { AppModule } from '../auth/types'
 import { useI18n } from '../i18n/I18nProvider'
 import type { Language } from '../i18n/types'
 
@@ -10,28 +11,30 @@ const LANG_OPTIONS: { code: Language; label: string }[] = [
   { code: 'it', label: 'IT' },
 ]
 
+type NavItem = { to: string; label: string; module: AppModule; highlight?: boolean }
+
 export default function Layout() {
-  const { t, lang, setLang } = useI18n()
-  const { user, logout, canPlan, isAdmin } = useAuth()
+  const { t } = useI18n()
+  const { lang, setLang } = useI18n()
+  const { user, logout, canView } = useAuth()
 
-  const mainLinks = [
-    { to: '/', label: t('navDashboard') },
-    { to: '/gantt', label: t('navGantt') },
-    { to: '/ordenes', label: t('navActiveOrders') },
-    ...(canPlan ? [
-      { to: '/optimizar', label: t('navOptimize'), highlight: true as const },
-      { to: '/importar', label: t('navImport'), highlight: false as const },
-    ] : []),
+  const allMain: NavItem[] = [
+    { to: '/', label: t('navDashboard'), module: 'dashboard' },
+    { to: '/gantt', label: t('navGantt'), module: 'gantt' },
+    { to: '/ordenes', label: t('navActiveOrders'), module: 'active_orders' },
+    { to: '/optimizar', label: t('navOptimize'), module: 'optimize', highlight: true },
+    { to: '/importar', label: t('navImport'), module: 'import' },
   ]
 
-  const otherLinks = [
-    { to: '/terminadas', label: t('navCompleted') },
-    ...(isAdmin ? [
-      { to: '/usuarios', label: t('navUsers') },
-      { to: '/materiales', label: t('navMaterials') },
-      { to: '/maquinas', label: t('navMachines') },
-    ] : []),
+  const allOther: NavItem[] = [
+    { to: '/terminadas', label: t('navCompleted'), module: 'completed' },
+    { to: '/usuarios', label: t('navUsers'), module: 'users' },
+    { to: '/materiales', label: t('navMaterials'), module: 'materials' },
+    { to: '/maquinas', label: t('navMachines'), module: 'machines' },
   ]
+
+  const mainLinks = allMain.filter((l) => canView(l.module))
+  const otherLinks = allOther.filter((l) => canView(l.module))
 
   return (
     <div className="min-h-screen flex">
