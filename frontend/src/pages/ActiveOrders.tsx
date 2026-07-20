@@ -124,7 +124,11 @@ export default function ActiveOrders() {
               {deletingAll ? '...' : t('btnDeleteAll')}
             </button>
           )}
-          <ExportButtons basePath="/export/orders?status=activa" filenameBase="ordenes_activas" />
+          <ExportButtons
+            basePath="/export/orders?status=activa"
+            filenameBase="ordenes_activas_gantt"
+            onError={setError}
+          />
           <span className="text-sm text-slate-500">{t('itemsOf', { filtered: filtered.length, total: items.length })}</span>
         </div>
       </div>

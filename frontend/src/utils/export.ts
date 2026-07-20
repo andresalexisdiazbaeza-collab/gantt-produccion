@@ -9,12 +9,31 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+export function buildExportPath(basePath: string, params: Record<string, string>): string {
+  const [path, existing] = basePath.split('?')
+  const search = new URLSearchParams(existing ?? '')
+  for (const [key, value] of Object.entries(params)) {
+    search.set(key, value)
+  }
+  const qs = search.toString()
+  return qs ? `${path}?${qs}` : path
+}
+
 export async function downloadFromApi(path: string, filename: string) {
   const token = getAuthToken()
   const res = await fetch(`/api${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
-  if (!res.ok) throw new Error('Error al descargar')
+  if (!res.ok) {
+    let message = 'Error al descargar'
+    try {
+      const data = await res.json()
+      if (typeof data.detail === 'string') message = data.detail
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message)
+  }
   const blob = await res.blob()
   const disposition = res.headers.get('Content-Disposition')
   const match = disposition?.match(/filename="?([^"]+)"?/)

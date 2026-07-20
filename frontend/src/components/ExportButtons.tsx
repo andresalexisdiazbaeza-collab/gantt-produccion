@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { downloadFromApi } from '../utils/export'
+import { buildExportPath, downloadFromApi } from '../utils/export'
 import { useI18n } from '../i18n/I18nProvider'
 
 type ExportFormat = 'xlsx' | 'pdf'
@@ -8,9 +8,10 @@ interface ExportButtonsProps {
   basePath: string
   filenameBase: string
   className?: string
+  onError?: (message: string) => void
 }
 
-export default function ExportButtons({ basePath, filenameBase, className = '' }: ExportButtonsProps) {
+export default function ExportButtons({ basePath, filenameBase, className = '', onError }: ExportButtonsProps) {
   const { t } = useI18n()
   const [loading, setLoading] = useState<ExportFormat | null>(null)
 
@@ -18,7 +19,11 @@ export default function ExportButtons({ basePath, filenameBase, className = '' }
     setLoading(format)
     try {
       const ext = format === 'xlsx' ? 'xlsx' : 'pdf'
-      await downloadFromApi(`${basePath}?format=${format}`, `${filenameBase}.${ext}`)
+      const path = buildExportPath(basePath, { format })
+      await downloadFromApi(path, `${filenameBase}.${ext}`)
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : t('error')
+      onError?.(message)
     } finally {
       setLoading(null)
     }
@@ -50,17 +55,21 @@ export default function ExportButtons({ basePath, filenameBase, className = '' }
 
 interface CompleteExportProps {
   className?: string
+  onError?: (message: string) => void
 }
 
-export function CompleteExportButtons({ className = '' }: CompleteExportProps) {
+export function CompleteExportButtons({ className = '', onError }: CompleteExportProps) {
   const { t } = useI18n()
   const [loading, setLoading] = useState<'xlsx' | 'pdf' | 'zip' | null>(null)
 
   const download = async (format: 'xlsx' | 'pdf' | 'zip') => {
     setLoading(format)
     try {
-      const ext = format
-      await downloadFromApi(`/export/complete?format=${format}`, `gantt_produccion_completo.${ext}`)
+      const path = buildExportPath('/export/complete', { format })
+      await downloadFromApi(path, `gantt_produccion_completo.${format}`)
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : t('error')
+      onError?.(message)
     } finally {
       setLoading(null)
     }

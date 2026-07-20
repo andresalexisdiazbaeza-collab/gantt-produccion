@@ -13,6 +13,8 @@ from openpyxl import Workbook  # noqa: E402
 from openpyxl.chart import BarChart, PieChart, Reference  # noqa: E402
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side  # noqa: E402
 from openpyxl.utils import get_column_letter  # noqa: E402
+import matplotlib.dates as mdates  # noqa: E402
+from openpyxl.drawing.image import Image as XLImage  # noqa: E402
 from reportlab.lib import colors  # noqa: E402
 from reportlab.lib.pagesizes import A4, landscape  # noqa: E402
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # noqa: E402
@@ -187,15 +189,198 @@ def build_orders_workbook(db: Session, status: Optional[str] = None, title: str 
     return wb
 
 
-def build_gantt_workbook(db: Session) -> Workbook:
-    wb = build_orders_workbook(db, ItemStatus.ACTIVA.value, "Gantt")
-    ws = wb.active
-    ws.cell(row=1, column=len(ORDER_HEADERS) + 2, value="Plan Gantt activo").font = TITLE_FONT
+def _parse_date(val: Any) -> Optional[date]:
+    if val is None:
+        return None
+    if isinstance(val, date):
+        return val
+    if isinstance(val, datetime):
+        return val.date()
+    try:
+        return date.fromisoformat(str(val)[:10])
+    except ValueError:
+        return None
+
+
+def _scheduled_active_items(db: Session) -> List[dict]:
+    items = _fetch_orders(db, ItemStatus.ACTIVA.value)
+    return [i for i in items if i.get("start_date") and i.get("finish_date")]
+
+
+def _build_gantt_timeline_figure(items: List[dict]):
+    scheduled = sorted(
+        [i for i in items if i.get("start_date") and i.get("finish_date")],
+        key=lambda x: (x.get("machine_name") or "ZZZ", str(x.get("start_date") or "")),
+    )
+    if not scheduled:
+        return None
+
+    fig_height = max(5, min(28, len(scheduled) * 0.42))
+    fig, ax = plt.subplots(figsize=(14, fig_height))
+
+    y_labels: List[str] = []
+    for y, item in enumerate(scheduled):
+        start = _parse_date(item["start_date"])
+        finish = _parse_date(item["finish_date"])
+        if not start or not finish:
+            continue
+        duration = max(1, (finish - start).days + 1)
+        late = bool(item.get("is_late"))
+        color = "#ef4444" if late else "#3b82f6"
+        start_num = mdates.date2num(start)
+        ax.barh(y, duration, left=start_num, height=0.72, color=color, edgecolor="white", linewidth=0.5)
+
+        label = str(item.get("order_number") or "")
+        customer = (item.get("customer") or "")[:14]
+        if customer:
+            label = f"{label} · {customer}"
+        ax.text(start_num + 0.4, y, label[:28], va="center", fontsize=7, color="white", fontweight="bold")
+
+        machine = item.get("machine_name") or "Sin máquina"
+        y_labels.append(f"{machine} | {item.get('order_number', '')}")
+
+    ax.set_yticks(range(len(y_labels)))
+    ax.set_yticklabels(y_labels, fontsize=7)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+    ax.set_title(f"{APP_TITLE} — Diagrama Gantt", fontsize=13, color="#1E3A5F", fontweight="bold")
+    ax.set_xlabel("Calendario de producción")
+    ax.invert_yaxis()
+    ax.grid(axis="x", alpha=0.25, linestyle="--")
+    fig.autofmt_xdate(rotation=30)
+    fig.tight_layout()
+    return fig
+
+
+def _fig_to_xlsx_image(fig, width: int = 960, height: int = 540) -> XLImage:
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    img = XLImage(buf)
+    img.width = width
+    img.height = height
+    return img
+
+
+def _add_gantt_sheet(wb: Workbook, db: Session) -> None:
+    scheduled = _scheduled_active_items(db)
+    ws = wb.create_sheet("Gantt")
+    ws["A1"] = f"{APP_TITLE} — Plan Gantt"
+    ws["A1"].font = TITLE_FONT
+    ws["A2"] = f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')} · {len(scheduled)} órdenes programadas"
+    ws.merge_cells("A2:H2")
+
+    if not scheduled:
+        ws["A4"] = "No hay órdenes con máquina, fecha inicio y fecha fin asignadas."
+        return
+
+    headers = ["Máquina", "Orden", "Cliente", "Inicio", "Fin", "Días", "Entrega", "Cumplimiento"]
+    rows = [[
+        i.get("machine_name"),
+        i.get("order_number"),
+        i.get("customer"),
+        i.get("start_date"),
+        i.get("finish_date"),
+        i.get("working_days"),
+        i.get("delivery_date"),
+        _compliance_label(i),
+    ] for i in scheduled]
+    table_end = _write_table(ws, headers, rows, start_row=4)
+
+    fig = _build_gantt_timeline_figure(scheduled)
+    if fig:
+        img_height = min(720, max(280, len(scheduled) * 28))
+        ws.add_image(_fig_to_xlsx_image(fig, width=980, height=img_height), f"A{table_end + 3}")
+
+    # Leyenda
+    legend_row = table_end + 3 + (len(scheduled) // 3) + 18
+    ws.cell(row=legend_row, column=1, value="Leyenda:").font = Font(bold=True)
+    ws.cell(row=legend_row + 1, column=1, value="Azul = a tiempo")
+    ws.cell(row=legend_row + 2, column=1, value="Rojo = atrasada vs fecha ofrecida")
+
+
+def build_active_orders_gantt_workbook(db: Session) -> Workbook:
+    wb = build_orders_workbook(db, ItemStatus.ACTIVA.value, "Ordenes activas")
+    _add_gantt_sheet(wb, db)
     return wb
 
 
+def build_active_orders_gantt_pdf(db: Session) -> bytes:
+    items = _fetch_orders(db, ItemStatus.ACTIVA.value)
+    scheduled = _scheduled_active_items(db)
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="Subtitle", fontSize=10, textColor=colors.grey))
+
+    story: list[Any] = [
+        _pdf_section_title(f"{APP_TITLE} — Órdenes activas + Gantt", styles),
+        Paragraph(
+            f"Registros: {len(items)} · Programadas: {len(scheduled)} · "
+            f"{datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            styles["Subtitle"],
+        ),
+        Spacer(1, 0.3 * cm),
+    ]
+
+    headers = [
+        "Orden", "Cliente", "Material", "Máquina", "Inicio", "Fin",
+        "Entrega", "Cumplimiento", "Kg",
+    ]
+    rows = [[
+        i.get("order_number"), i.get("customer"), i.get("raw_material"),
+        i.get("machine_name"), i.get("start_date"), i.get("finish_date"),
+        i.get("delivery_date"), _compliance_label(i), i.get("kg_totales"),
+    ] for i in items[:150]]
+    story.append(_pdf_table([headers] + rows))
+    if len(items) > 150:
+        story.append(Paragraph(f"... y {len(items) - 150} registros más en Excel", styles["Italic"]))
+
+    if scheduled:
+        fig = _build_gantt_timeline_figure(scheduled)
+        if fig:
+            story += [
+                PageBreak(),
+                _pdf_section_title("Diagrama Gantt", styles),
+                Paragraph(
+                    "Barras azules = a tiempo · Barras rojas = atrasadas vs fecha ofrecida",
+                    styles["Subtitle"],
+                ),
+                Spacer(1, 0.3 * cm),
+                _fig_to_image(fig, width=24 * cm),
+            ]
+
+        on_time = sum(1 for i in items if i.get("delivery_status") == "on_time")
+        late = sum(1 for i in items if i.get("is_late"))
+        no_date = sum(1 for i in items if i.get("delivery_status") == "no_date")
+        pending = sum(1 for i in items if i.get("delivery_status") == "pending")
+        labels_vals = [("A tiempo", on_time), ("Atrasadas", late), ("Sin fecha", no_date), ("Sin fin", pending)]
+        filtered = [(label, val) for label, val in labels_vals if val > 0]
+        if filtered:
+            pie_labels, pie_values = zip(*filtered)
+            story += [
+                Spacer(1, 0.4 * cm),
+                _fig_to_image(_build_chart_figure(
+                    list(pie_labels), list(pie_values),
+                    "Cumplimiento de entregas",
+                    "pie",
+                ), width=14 * cm),
+            ]
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def build_gantt_workbook(db: Session) -> Workbook:
+    return build_active_orders_gantt_workbook(db)
+
+
+def build_gantt_pdf(db: Session) -> bytes:
+    return build_active_orders_gantt_pdf(db)
+
+
 def build_dashboard_workbook(db: Session) -> Workbook:
-    stats = get_dashboard_stats(db)
     wb = Workbook()
 
     ws0 = wb.active
@@ -422,10 +607,6 @@ def build_orders_pdf(db: Session, status: Optional[str] = None, title: str = "Ó
     return buf.getvalue()
 
 
-def build_gantt_pdf(db: Session) -> bytes:
-    return build_orders_pdf(db, ItemStatus.ACTIVA.value, "Gantt")
-
-
 def build_materials_pdf(db: Session) -> bytes:
     materials = db.query(MaterialConfig).order_by(MaterialConfig.material).all()
     buf = BytesIO()
@@ -525,7 +706,7 @@ def _merge_workbooks(target: Workbook, source: Workbook, prefix: str = "") -> No
 MODULE_BUILDERS = {
     "dashboard": ("Dashboard", build_dashboard_workbook, build_dashboard_pdf),
     "gantt": ("Gantt", build_gantt_workbook, build_gantt_pdf),
-    "active_orders": ("Ordenes activas", lambda db: build_orders_workbook(db, ItemStatus.ACTIVA.value, "Activas"), lambda db: build_orders_pdf(db, ItemStatus.ACTIVA.value, "Órdenes activas")),
+    "active_orders": ("Ordenes activas", build_active_orders_gantt_workbook, build_active_orders_gantt_pdf),
     "completed": ("Ordenes terminadas", lambda db: build_orders_workbook(db, ItemStatus.TERMINADA.value, "Terminadas"), lambda db: build_orders_pdf(db, ItemStatus.TERMINADA.value, "Órdenes terminadas")),
     "optimize": ("Optimizacion", build_optimize_workbook, build_optimize_pdf),
     "materials": ("Materiales", build_materials_workbook, build_materials_pdf),
