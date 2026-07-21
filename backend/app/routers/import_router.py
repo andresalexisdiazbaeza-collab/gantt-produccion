@@ -23,7 +23,14 @@ FIELDS = [
     "delivery_date", "source_status",
 ]
 
-DEFAULT_GANTT_PATH = Path("/Users/andresdiaz/Desktop/Production gantt2.xlsx")
+import os
+
+DEFAULT_GANTT_PATH = Path(
+    os.environ.get(
+        "GANTT_LOCAL_XLSX_PATH",
+        "/Users/andresdiaz/Desktop/Production gantt2.xlsx",
+    )
+)
 
 
 def _build_item_lookup(db: Session) -> Tuple[Dict[str, ProductionItem], Dict[str, ProductionItem], Dict[str, ProductionItem]]:

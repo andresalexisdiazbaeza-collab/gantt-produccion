@@ -3,7 +3,7 @@
 ## 1. Subir a GitHub
 
 ```bash
-cd "/Users/andresdiaz/Desktop/Gantt produccion"
+cd "/Users/andresdiaz/Desktop/PROGRAMAS/no tocar/Gantt produccion"
 
 # Inicializar repositorio (solo la primera vez)
 git init

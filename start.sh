@@ -3,6 +3,13 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 echo "=== Deteniendo procesos anteriores en puertos 5173 y 8002 ==="
 lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
 lsof -ti:8002 2>/dev/null | xargs kill -9 2>/dev/null || true
@@ -11,6 +18,8 @@ sleep 1
 echo "=== Backend (puerto 8002) ==="
 cd "$ROOT/backend"
 pip3 install -r requirements.txt -q 2>/dev/null || true
+export GANTT_DB_PATH="${GANTT_DB_PATH:-$ROOT/gantt_produccion.db}"
+export GANTT_LOCAL_XLSX_PATH="${GANTT_LOCAL_XLSX_PATH:-/Users/andresdiaz/Desktop/Production gantt2.xlsx}"
 python3 -m uvicorn app.main:app --reload --port 8002 &
 BACKEND_PID=$!
 
