@@ -5,7 +5,7 @@ from .auth_utils import hash_password
 from .permissions import default_permissions_for_role, save_user_permissions
 from .database import engine
 from .holidays import slovak_holidays_for_year
-from .models import MachineConfig, MaterialConfig, SlovakHoliday, User
+from .models import ConfectionTeam, MachineConfig, MaterialConfig, SlovakHoliday, User
 
 DEFAULT_CHANGEOVER_SHIFTS = 3
 INITIAL_PASSWORD = "12345"
@@ -40,9 +40,15 @@ DEFAULT_MACHINES = [
     ("17", 125, 2, 3),
 ]
 
+DEFAULT_CONFECTION_TEAMS = [
+    ("Team A", 4, 7.5, 0.0),
+    ("Team B", 4, 7.5, 0.0),
+    ("Team C", 5, 7.5, 1.0),
+]
+
 
 def migrate_schema(db: Session) -> None:
-    """Add new columns to existing SQLite DB without Alembic."""
+    """Add new columns / widen types without Alembic."""
     inspector = inspect(engine)
     if "machine_configs" in inspector.get_table_names():
         cols = {c["name"] for c in inspector.get_columns("machine_configs")}
@@ -74,6 +80,31 @@ def migrate_schema(db: Session) -> None:
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE production_items ADD COLUMN meters_produced FLOAT DEFAULT 0"))
                 conn.commit()
+
+    # Confección: widen free-text Excel fields (Postgres enforces VARCHAR lengths)
+    if "confection_items" in inspector.get_table_names() and engine.dialect.name == "postgresql":
+        widen = {
+            "id_code": "TEXT",
+            "tag_numbers": "TEXT",
+            "circumference": "TEXT",
+            "height": "TEXT",
+            "cage_type": "TEXT",
+            "mesh_mm": "TEXT",
+            "payment_terms": "TEXT",
+            "pcs_label": "VARCHAR(100)",
+            "po_number": "VARCHAR(80)",
+            "purchase_order": "VARCHAR(250)",
+            "customer": "VARCHAR(250)",
+            "twine_size": "VARCHAR(250)",
+            "color": "VARCHAR(100)",
+            "product_type": "VARCHAR(150)",
+            "requested_delivery_text": "VARCHAR(250)",
+            "netting_status": "VARCHAR(150)",
+        }
+        with engine.connect() as conn:
+            for col, typ in widen.items():
+                conn.execute(text(f"ALTER TABLE confection_items ALTER COLUMN {col} TYPE {typ}"))
+            conn.commit()
 
 
 def seed_database(db: Session) -> None:
@@ -125,5 +156,20 @@ def seed_database(db: Session) -> None:
                     user.email = email
                 if not user.permissions_json:
                     user.permissions_json = save_user_permissions(default_permissions_for_role(user.role))
+                # Refresh confection role defaults so new modules appear
+                if user.role == "confection":
+                    user.permissions_json = save_user_permissions(default_permissions_for_role("confection"))
+
+    if db.query(ConfectionTeam).count() == 0:
+        for name, workers, hours_daily, extra in DEFAULT_CONFECTION_TEAMS:
+            db.add(
+                ConfectionTeam(
+                    name=name,
+                    workers=workers,
+                    hours_daily=hours_daily,
+                    extra_hours_day=extra,
+                    active=True,
+                )
+            )
 
     db.commit()

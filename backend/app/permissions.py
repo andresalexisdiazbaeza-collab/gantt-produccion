@@ -15,6 +15,13 @@ APP_MODULES = (
     "materials",
     "machines",
     "users",
+    "confection_dashboard",
+    "confection_gantt",
+    "confection_orders",
+    "confection_optimize",
+    "confection_import",
+    "confection_completed",
+    "confection_teams",
 )
 
 ITEM_FIELDS = (
@@ -36,6 +43,16 @@ ITEM_FIELD_TO_PAYLOAD = {
     "notes": "notes",
     "meters_produced": "meters_produced",
 }
+
+CONFECTION_MODULES = (
+    "confection_dashboard",
+    "confection_gantt",
+    "confection_orders",
+    "confection_optimize",
+    "confection_import",
+    "confection_completed",
+    "confection_teams",
+)
 
 
 class PermissionEntry(TypedDict):
@@ -60,6 +77,10 @@ def _items(**kwargs: PermissionEntry) -> dict[str, PermissionEntry]:
     return {f: kwargs.get(f, _entry(view=True)) for f in ITEM_FIELDS}
 
 
+def _all_confection(view: bool = True, modify: bool = True) -> dict[str, PermissionEntry]:
+    return {m: _entry(view, modify) for m in CONFECTION_MODULES}
+
+
 DEFAULT_BY_ROLE: dict[str, UserPermissions] = {
     "admin": {
         "modules": _modules(**{m: _entry(True, True) for m in APP_MODULES}),
@@ -76,6 +97,7 @@ DEFAULT_BY_ROLE: dict[str, UserPermissions] = {
             materials=_entry(True, False),
             machines=_entry(True, False),
             users=_entry(True, True),
+            **_all_confection(True, True),
         ),
         "items": _items(
             machine=_entry(True, True),
@@ -94,6 +116,10 @@ DEFAULT_BY_ROLE: dict[str, UserPermissions] = {
             gantt=_entry(True, False),
             active_orders=_entry(True, False),
             completed=_entry(True, False),
+            confection_dashboard=_entry(True, False),
+            confection_gantt=_entry(True, False),
+            confection_orders=_entry(True, False),
+            confection_completed=_entry(True, False),
         ),
         "items": _items(
             notes=_entry(True, True),
@@ -106,6 +132,10 @@ DEFAULT_BY_ROLE: dict[str, UserPermissions] = {
             gantt=_entry(True, False),
             active_orders=_entry(True, False),
             completed=_entry(True, False),
+            confection_dashboard=_entry(True, False),
+            confection_gantt=_entry(True, False),
+            confection_orders=_entry(True, False),
+            confection_completed=_entry(True, False),
         ),
         "items": _items(
             notes=_entry(True, True),
@@ -114,14 +144,12 @@ DEFAULT_BY_ROLE: dict[str, UserPermissions] = {
     },
     "confection": {
         "modules": _modules(
-            dashboard=_entry(True, False),
-            gantt=_entry(True, False),
-            active_orders=_entry(True, False),
-            completed=_entry(True, False),
+            **_all_confection(True, True),
         ),
         "items": _items(
             notes=_entry(True, True),
             meters_produced=_entry(True, True),
+            complete=_entry(True, True),
         ),
     },
 }
@@ -177,12 +205,14 @@ def can_manage_users(user: User) -> bool:
 
 def can_view_module(user: User, module: str) -> bool:
     if user.role == "admin":
-        return load_user_permissions(user)["modules"].get(module, _entry())["view"]
+        return True
     perms = load_user_permissions(user)
     return perms["modules"].get(module, _entry())["view"]
 
 
 def can_modify_module(user: User, module: str) -> bool:
+    if user.role == "admin":
+        return True
     perms = load_user_permissions(user)
     return perms["modules"].get(module, _entry())["modify"]
 

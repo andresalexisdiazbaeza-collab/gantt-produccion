@@ -28,18 +28,61 @@ git push -u origin main
 
 ## 2. Desplegar en Render
 
+### Bases de datos (gratis, sin PostgreSQL de Render)
+
+| App | Base de datos | Proveedor |
+|-----|---------------|-----------|
+| **Gantt** | PostgreSQL | [Neon](https://neon.tech) (free) |
+| **Inventario** | MongoDB | [MongoDB Atlas](https://www.mongodb.com/atlas) (free) |
+
+La PostgreSQL de Render (`gantt-produccion-db`) **expira a los 90 días** — no la uses. Usa Neon.
+
+---
+
+### 2.1 Crear base en Neon (Gantt)
+
+1. Entra en [console.neon.tech](https://console.neon.tech) → **New project**
+2. Región: **Frankfurt** (cerca de Render EU)
+3. Copia la **connection string** (modo **Pooled**, con `sslmode=require`)
+4. En Render → servicio `gantt-produccion` → **Environment**:
+   - `DATABASE_URL` = la URL de Neon
+   - `GANTT_APP_URL` = `https://gantt-produccion.onrender.com`
+5. **Manual Deploy** → Deploy latest commit
+
+O desde terminal (con API key de Render en `~/.render/cli.yaml`):
+
+```bash
+export NEON_DATABASE_URL='postgresql://...'
+python3 scripts/configure-render-databases.py
+```
+
+---
+
+### 2.2 MongoDB Atlas (Inventario)
+
+Si ya tienes cluster Atlas (como `cluster01`):
+
+1. Atlas → **Database** → **Connect** → Drivers → copia `mongodb+srv://...`
+2. En Render → servicio `respaldo-inventario-master` → **Environment**:
+   - `MONGODB_URI` = la URL de Atlas
+3. **Manual Deploy**
+
+O con el script:
+
+```bash
+export MONGODB_URI='mongodb+srv://...'
+python3 scripts/configure-render-databases.py
+```
+
+---
+
 ### Opción A — Blueprint (recomendada)
 
 1. Entra en [render.com](https://render.com) → **New** → **Blueprint**
 2. Conecta tu repositorio de GitHub
-3. Render detectará `render.yaml` y creará:
-   - **Web Service** `gantt-produccion` (API + frontend)
-   - **PostgreSQL** `gantt-produccion-db` (datos persistentes)
-   - **Disco** de 1 GB (backup SQLite opcional)
-4. Tras el deploy, en **Environment** del servicio web configura:
-   - `GANTT_APP_URL` = URL pública de Render, ej. `https://gantt-produccion.onrender.com`
-   - `GANTT_JWT_SECRET` — Render lo genera automáticamente con el blueprint
-5. Abre la URL del servicio → login con usuario `admin` / contraseña `12345` (cámbiala en **Mi cuenta**)
+3. Render creará solo el **Web Service** `gantt-produccion` (sin base de datos Render)
+4. Configura `DATABASE_URL` (Neon) y `GANTT_APP_URL` como arriba
+5. Abre la URL → login `admin` / `12345` (cámbiala en **Mi cuenta**)
 
 ### Opción B — Manual (un solo servicio)
 
@@ -55,10 +98,8 @@ git push -u origin main
 | Variable | Valor |
 |----------|-------|
 | `GANTT_JWT_SECRET` | Secreto aleatorio largo |
-| `GANTT_APP_URL` | `https://tu-servicio.onrender.com` |
-| `DATABASE_URL` | Cadena de conexión PostgreSQL de Render |
-
-Crea una base **PostgreSQL** en Render (free) y pega su *Internal Database URL* en `DATABASE_URL`.
+| `GANTT_APP_URL` | `https://gantt-produccion.onrender.com` |
+| `DATABASE_URL` | Connection string de **Neon** (PostgreSQL) |
 
 ---
 
@@ -67,7 +108,7 @@ Crea una base **PostgreSQL** en Render (free) y pega su *Internal Database URL* 
 - El **build** compila el frontend (`frontend/dist`) e instala Python.
 - El **backend** sirve la API en `/api/*` y el frontend React en `/`.
 - El frontend llama a `/api` en el mismo dominio (sin CORS extra).
-- Los datos viven en **PostgreSQL** (recomendado en Render).
+- Los datos de Gantt viven en **Neon PostgreSQL** (persistente, sin límite de 90 días de Render).
 
 ---
 

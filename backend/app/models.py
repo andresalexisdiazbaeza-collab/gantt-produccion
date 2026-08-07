@@ -122,3 +122,67 @@ class ImportLog(Base):
     skipped_count: Mapped[int] = mapped_column(Integer, default=0)
     updated_count: Mapped[int] = mapped_column(Integer, default=0)
     details: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class ConfectionTeam(Base):
+    __tablename__ = "confection_teams"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    workers: Mapped[int] = mapped_column(Integer, default=4)
+    hours_daily: Mapped[float] = mapped_column(Float, default=7.5)
+    extra_hours_day: Mapped[float] = mapped_column(Float, default=0.0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    items: Mapped[list["ConfectionItem"]] = relationship(back_populates="team")
+
+
+class ConfectionItem(Base):
+    __tablename__ = "confection_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default=ItemStatus.ACTIVA.value, index=True)
+
+    pcs_label: Mapped[Optional[str]] = mapped_column(String(100))
+    quantity: Mapped[Optional[float]] = mapped_column(Float, default=1.0)
+    po_number: Mapped[str] = mapped_column(String(80), index=True)
+    purchase_order: Mapped[Optional[str]] = mapped_column(String(250))
+    id_code: Mapped[Optional[str]] = mapped_column(Text, index=True)
+    customer: Mapped[Optional[str]] = mapped_column(String(250))
+    tag_numbers: Mapped[Optional[str]] = mapped_column(Text)
+    circumference: Mapped[Optional[str]] = mapped_column(Text)
+    height: Mapped[Optional[str]] = mapped_column(Text)
+    cage_type: Mapped[Optional[str]] = mapped_column(Text)
+    mesh_mm: Mapped[Optional[str]] = mapped_column(Text)
+    twine_size: Mapped[Optional[str]] = mapped_column(String(250))
+    color: Mapped[Optional[str]] = mapped_column(String(100))
+    product_type: Mapped[Optional[str]] = mapped_column(String(150))
+
+    received_date: Mapped[Optional[date_type]] = mapped_column(Date)
+    payment_terms: Mapped[Optional[str]] = mapped_column(Text)
+    requested_delivery_text: Mapped[Optional[str]] = mapped_column(String(250))
+    delivery_offered: Mapped[Optional[date_type]] = mapped_column(Date)
+    netting_ready_date: Mapped[Optional[date_type]] = mapped_column(Date)
+    netting_status: Mapped[Optional[str]] = mapped_column(String(150))
+
+    kg_cage: Mapped[Optional[float]] = mapped_column(Float)
+    netting_m2: Mapped[Optional[float]] = mapped_column(Float)
+    netting_kg: Mapped[Optional[float]] = mapped_column(Float)
+    total_hours: Mapped[Optional[float]] = mapped_column(Float)
+    coating_hours: Mapped[Optional[float]] = mapped_column(Float)
+    real_hours: Mapped[Optional[float]] = mapped_column(Float)
+
+    team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("confection_teams.id"))
+    workers_assigned: Mapped[Optional[int]] = mapped_column(Integer)
+    team_hours: Mapped[Optional[float]] = mapped_column(Float)
+    start_date: Mapped[Optional[date_type]] = mapped_column(Date)
+    finish_date: Mapped[Optional[date_type]] = mapped_column(Date)
+    working_days: Mapped[Optional[float]] = mapped_column(Float)
+    pct_done: Mapped[Optional[float]] = mapped_column(Float, default=0.0)
+    comments: Mapped[Optional[str]] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    team: Mapped[Optional["ConfectionTeam"]] = relationship(back_populates="items")

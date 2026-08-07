@@ -7,12 +7,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, SessionLocal, engine
-from .routers import auth_router, dashboard, export, import_router, items, machines, materials, optimize
+from .routers import auth_router, confection, dashboard, export, import_router, items, machines, materials, optimize
 from .seed import seed_database
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Gantt Producción API", version="0.2.0")
+app = FastAPI(title="Gantt Producción API", version="0.3.0")
 
 _default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8002"
 _cors_origins = [o.strip() for o in os.environ.get("GANTT_CORS_ORIGINS", _default_origins).split(",") if o.strip()]
@@ -33,6 +33,7 @@ app.include_router(import_router.router, prefix="/api")
 app.include_router(optimize.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(confection.router, prefix="/api")
 
 _STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
@@ -50,13 +51,14 @@ def startup():
 def health():
     return {
         "status": "ok",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "features": [
             "nuevo-formato-import",
             "gantt-planning-import-optional",
             "gantt-optimize-optional",
             "gantt-filters",
             "excel-export",
+            "confection-module",
         ],
     }
 

@@ -243,4 +243,58 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     }),
+
+  // Confección
+  getConfectionDashboard: () => request<import('../types').ConfectionDashboardStats>('/confection/dashboard'),
+  getConfectionTeams: (activeOnly = false) =>
+    request<import('../types').ConfectionTeam[]>(`/confection/teams${activeOnly ? '?active_only=true' : ''}`),
+  createConfectionTeam: (data: Omit<import('../types').ConfectionTeam, 'id'>) =>
+    request<import('../types').ConfectionTeam>('/confection/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  updateConfectionTeam: (id: number, data: Partial<import('../types').ConfectionTeam>) =>
+    request<import('../types').ConfectionTeam>(`/confection/teams/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  deleteConfectionTeam: (id: number) =>
+    request<void>(`/confection/teams/${id}`, { method: 'DELETE' }),
+  getConfectionItems: (status?: string) =>
+    request<import('../types').ConfectionItem[]>(`/confection/items${status ? `?status=${status}` : ''}`),
+  updateConfectionItem: (id: number, data: Record<string, unknown>) =>
+    request<import('../types').ConfectionItem>(`/confection/items/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  completeConfectionItem: (id: number) =>
+    request<import('../types').ConfectionItem>(`/confection/items/${id}/complete`, { method: 'POST' }),
+  reactivateConfectionItem: (id: number) =>
+    request<import('../types').ConfectionItem>(`/confection/items/${id}/reactivate`, { method: 'POST' }),
+  deleteAllConfectionItems: (status?: string) =>
+    request<{ deleted_count: number }>(
+      `/confection/items/all${status ? `?status=${status}` : ''}`,
+      { method: 'DELETE' },
+    ),
+  importConfection: async (file: File): Promise<import('../types').ConfectionImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/confection/import`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || 'Error al importar confección')
+    }
+    return res.json()
+  },
+  getConfectionOptimizePreview: () =>
+    request<import('../types').ConfectionOptimizePreview>('/confection/optimize/preview'),
+  applyConfectionOptimization: () =>
+    request<{ applied_count: number }>('/confection/optimize/apply', { method: 'POST' }),
 }

@@ -144,3 +144,92 @@ export interface DashboardStats {
   by_customer: { customer: string; count: number; kg: number }[]
   delivery_compliance: { on_time: number; late: number; no_date: number }
 }
+
+export interface ConfectionTeam {
+  id: number
+  name: string
+  workers: number
+  hours_daily: number
+  extra_hours_day: number
+  active: boolean
+}
+
+export interface ConfectionItem {
+  id: number
+  fingerprint: string
+  status: string
+  pcs_label: string | null
+  quantity: number | null
+  po_number: string
+  purchase_order: string | null
+  id_code: string | null
+  customer: string | null
+  tag_numbers: string | null
+  circumference: string | null
+  height: string | null
+  cage_type: string | null
+  mesh_mm: string | null
+  twine_size: string | null
+  color: string | null
+  product_type: string | null
+  received_date: string | null
+  payment_terms: string | null
+  requested_delivery_text: string | null
+  delivery_offered: string | null
+  netting_ready_date: string | null
+  netting_status: string | null
+  kg_cage: number | null
+  netting_m2: number | null
+  netting_kg: number | null
+  total_hours: number | null
+  coating_hours: number | null
+  real_hours: number | null
+  team_id: number | null
+  team_name: string | null
+  workers_assigned: number | null
+  team_hours: number | null
+  start_date: string | null
+  finish_date: string | null
+  working_days: number | null
+  pct_done: number
+  comments: string | null
+  completed_at: string | null
+  delivery_status?: string | null
+  is_late?: boolean
+  days_late?: number
+  days_margin?: number
+}
+
+export interface ConfectionDashboardStats {
+  active_count: number
+  completed_count: number
+  teams_active: number
+  total_hours: number
+  avg_pct_done: number
+  team_load: { team: string; working_days: number; hours: number }[]
+  by_type: { type: string; count: number; hours: number }[]
+  by_customer: { customer: string; count: number; hours: number }[]
+  delivery_compliance: { on_time: number; late: number; no_date: number }
+}
+
+export interface ConfectionOptimizePreview {
+  anchor_date: string
+  current: {
+    slots: Array<Record<string, unknown>>
+    metrics: { scheduled: number; on_time: number; late: number; unassigned: number }
+  }
+  optimized: {
+    slots: Array<Record<string, unknown>>
+    metrics: { scheduled: number; on_time: number; late: number; unassigned: number }
+  }
+  unassigned: Array<{ id: number; po_number: string; customer: string | null; id_code: string | null }>
+  capacity: Array<{ team_id: number; team_name: string; daily_hours: number; workers: number }>
+}
+
+export interface ConfectionImportResult {
+  new_count: number
+  updated_count: number
+  skipped_count: number
+  orders_parsed: number
+  finished_parsed: number
+}

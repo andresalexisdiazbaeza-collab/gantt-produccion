@@ -10,6 +10,13 @@ export type AppModule =
   | 'materials'
   | 'machines'
   | 'users'
+  | 'confection_dashboard'
+  | 'confection_gantt'
+  | 'confection_orders'
+  | 'confection_optimize'
+  | 'confection_import'
+  | 'confection_completed'
+  | 'confection_teams'
 
 export type ItemPermissionField =
   | 'machine'
@@ -51,11 +58,13 @@ export function isAdmin(role: UserRole): boolean {
 
 export function canViewModule(user: AuthUser | null, module: AppModule): boolean {
   if (!user?.permissions) return false
+  if (user.role === 'admin') return true
   return user.permissions.modules[module]?.view ?? false
 }
 
 export function canModifyModule(user: AuthUser | null, module: AppModule): boolean {
   if (!user?.permissions) return false
+  if (user.role === 'admin') return true
   return user.permissions.modules[module]?.modify ?? false
 }
 
@@ -78,8 +87,23 @@ export const MODULE_ROUTES: Record<AppModule, string> = {
   materials: '/materiales',
   machines: '/maquinas',
   users: '/usuarios',
+  confection_dashboard: '/confeccion',
+  confection_gantt: '/confeccion/gantt',
+  confection_orders: '/confeccion/ordenes',
+  confection_optimize: '/confeccion/optimizar',
+  confection_import: '/confeccion/importar',
+  confection_completed: '/confeccion/terminadas',
+  confection_teams: '/confeccion/equipos',
 }
 
 export const ROUTE_MODULE: Record<string, AppModule> = Object.fromEntries(
   Object.entries(MODULE_ROUTES).map(([k, v]) => [v, k as AppModule]),
 ) as Record<string, AppModule>
+
+export function moduleForPath(pathname: string): AppModule | undefined {
+  if (ROUTE_MODULE[pathname]) return ROUTE_MODULE[pathname]
+  const match = Object.entries(MODULE_ROUTES)
+    .filter(([, route]) => route !== '/' && pathname.startsWith(route + '/'))
+    .sort((a, b) => b[1].length - a[1].length)[0]
+  return match ? (match[0] as AppModule) : undefined
+}

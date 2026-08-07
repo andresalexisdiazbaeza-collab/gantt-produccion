@@ -19,7 +19,7 @@ export default function Layout() {
   const { lang, setLang } = useI18n()
   const { user, logout, canView } = useAuth()
 
-  const allMain: NavItem[] = [
+  const productionMain: NavItem[] = [
     { to: '/', label: t('navDashboard'), module: 'dashboard' },
     { to: '/gantt', label: t('navGantt'), module: 'gantt' },
     { to: '/ordenes', label: t('navActiveOrders'), module: 'active_orders' },
@@ -27,15 +27,46 @@ export default function Layout() {
     { to: '/importar', label: t('navImport'), module: 'import' },
   ]
 
-  const allOther: NavItem[] = [
+  const productionOther: NavItem[] = [
     { to: '/terminadas', label: t('navCompleted'), module: 'completed' },
     { to: '/usuarios', label: t('navUsers'), module: 'users' },
     { to: '/materiales', label: t('navMaterials'), module: 'materials' },
     { to: '/maquinas', label: t('navMachines'), module: 'machines' },
   ]
 
-  const mainLinks = allMain.filter((l) => canView(l.module))
-  const otherLinks = allOther.filter((l) => canView(l.module))
+  const confectionLinks: NavItem[] = [
+    { to: '/confeccion', label: t('navConfDashboard'), module: 'confection_dashboard' },
+    { to: '/confeccion/gantt', label: t('navConfGantt'), module: 'confection_gantt' },
+    { to: '/confeccion/ordenes', label: t('navConfOrders'), module: 'confection_orders' },
+    { to: '/confeccion/optimizar', label: t('navConfOptimize'), module: 'confection_optimize', highlight: true },
+    { to: '/confeccion/importar', label: t('navConfImport'), module: 'confection_import' },
+    { to: '/confeccion/terminadas', label: t('navConfCompleted'), module: 'confection_completed' },
+    { to: '/confeccion/equipos', label: t('navConfTeams'), module: 'confection_teams' },
+  ]
+
+  const mainLinks = productionMain.filter((l) => canView(l.module))
+  const otherLinks = productionOther.filter((l) => canView(l.module))
+  const confLinks = confectionLinks.filter((l) => canView(l.module))
+
+  const renderLinks = (links: NavItem[], endPath?: string) =>
+    links.map((l) => (
+      <NavLink
+        key={l.to}
+        to={l.to}
+        end={endPath ? l.to === endPath : l.to === '/'}
+        className={({ isActive }) =>
+          `block px-3 py-2 rounded-lg text-sm transition-colors ${
+            isActive
+              ? 'bg-blue-600 text-white'
+              : l.highlight
+                ? 'text-amber-300 hover:bg-slate-800 font-medium'
+                : 'text-slate-300 hover:bg-slate-800'
+          }`
+        }
+      >
+        {l.label}
+      </NavLink>
+    ))
 
   return (
     <div className="min-h-screen flex">
@@ -51,40 +82,22 @@ export default function Layout() {
           )}
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {mainLinks.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.to === '/'}
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : l.highlight
-                      ? 'text-amber-300 hover:bg-slate-800 font-medium'
-                      : 'text-slate-300 hover:bg-slate-800'
-                }`
-              }
-            >
-              {l.label}
-            </NavLink>
-          ))}
+          {mainLinks.length > 0 && (
+            <>
+              <p className="px-3 text-[10px] uppercase tracking-wider text-slate-500 mb-1">{t('navProduction')}</p>
+              {renderLinks(mainLinks)}
+            </>
+          )}
           {otherLinks.length > 0 && (
             <div className="pt-3 mt-2 border-t border-slate-700">
               <p className="px-3 text-[10px] uppercase tracking-wider text-slate-500 mb-1">{t('navConfig')}</p>
-              {otherLinks.map((l) => (
-                <NavLink
-                  key={l.to}
-                  to={l.to}
-                  className={({ isActive }) =>
-                    `block px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-                    }`
-                  }
-                >
-                  {l.label}
-                </NavLink>
-              ))}
+              {renderLinks(otherLinks)}
+            </div>
+          )}
+          {confLinks.length > 0 && (
+            <div className="pt-3 mt-2 border-t border-slate-700">
+              <p className="px-3 text-[10px] uppercase tracking-wider text-teal-400 mb-1">{t('navConfeccion')}</p>
+              {renderLinks(confLinks, '/confeccion')}
             </div>
           )}
         </nav>

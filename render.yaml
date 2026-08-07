@@ -1,5 +1,5 @@
 # Blueprint Render — API + frontend en un solo servicio
-# Ver DEPLOY.md para instrucciones paso a paso
+# Base de datos: Neon PostgreSQL (gratis). Ver DEPLOY.md.
 
 services:
   - type: web
@@ -17,12 +17,4 @@ services:
       - key: GANTT_APP_URL
         sync: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: gantt-produccion-db
-          property: connectionString
-
-databases:
-  - name: gantt-produccion-db
-    plan: free
-    databaseName: gantt_produccion
-    user: gantt
+        sync: false

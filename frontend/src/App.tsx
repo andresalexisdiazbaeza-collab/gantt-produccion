@@ -15,6 +15,13 @@ import UsersAdminPage from './pages/UsersAdminPage'
 import OptimizePage from './pages/OptimizePage'
 import MaterialsPage from './pages/MaterialsPage'
 import MachinesPage from './pages/MachinesPage'
+import ConfeccionDashboard from './pages/ConfeccionDashboard'
+import ConfeccionGanttPage from './pages/ConfeccionGanttPage'
+import ConfeccionOrders from './pages/ConfeccionOrders'
+import ConfeccionOptimizePage from './pages/ConfeccionOptimizePage'
+import ConfeccionImportPage from './pages/ConfeccionImportPage'
+import ConfeccionCompleted from './pages/ConfeccionCompleted'
+import ConfeccionTeamsPage from './pages/ConfeccionTeamsPage'
 
 export default function App() {
   return (
@@ -36,6 +43,13 @@ export default function App() {
               <Route path="terminadas" element={<CompletedOrders />} />
               <Route path="materiales" element={<MaterialsPage />} />
               <Route path="maquinas" element={<MachinesPage />} />
+              <Route path="confeccion" element={<ConfeccionDashboard />} />
+              <Route path="confeccion/gantt" element={<ConfeccionGanttPage />} />
+              <Route path="confeccion/ordenes" element={<ConfeccionOrders />} />
+              <Route path="confeccion/optimizar" element={<ConfeccionOptimizePage />} />
+              <Route path="confeccion/importar" element={<ConfeccionImportPage />} />
+              <Route path="confeccion/terminadas" element={<ConfeccionCompleted />} />
+              <Route path="confeccion/equipos" element={<ConfeccionTeamsPage />} />
             </Route>
           </Route>
         </Route>

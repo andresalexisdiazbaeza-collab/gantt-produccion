@@ -9,12 +9,19 @@ if _raw_url:
         _raw_url = _raw_url.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URL = _raw_url
     _connect_args: dict = {}
+    # Neon / cloud Postgres: SSL + revive idle connections after scale-to-zero
+    _engine_kwargs: dict = {"pool_pre_ping": True}
 else:
     db_path = os.environ.get("GANTT_DB_PATH", "./gantt_produccion.db")
     SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
     _connect_args = {"check_same_thread": False}
+    _engine_kwargs = {}
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=_connect_args)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args=_connect_args,
+    **_engine_kwargs,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
