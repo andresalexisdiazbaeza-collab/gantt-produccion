@@ -4,12 +4,13 @@ from datetime import date
 from io import BytesIO
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user
+from ..export_i18n import normalize_lang
 from ..export_service import (
     MODULE_BUILDERS,
     build_complete_pdf,
@@ -70,12 +71,22 @@ def _zip_response(data: bytes, filename: str) -> StreamingResponse:
     return _stream_bytes(data, "application/zip", filename)
 
 
+def _resolve_lang(lang: Optional[str], request: Request) -> str:
+    if lang:
+        return normalize_lang(lang)
+    header = request.headers.get("Accept-Language", "")
+    if header:
+        return normalize_lang(header.split(",")[0].split("-")[0].strip())
+    return "es"
+
+
 def _export_module(
     db: Session,
     user: User,
     module: str,
     fmt: ExportFormat,
     filename_base: str,
+    lang: str = "es",
 ) -> StreamingResponse:
     _require_module(user, module)
     if module not in MODULE_BUILDERS:
@@ -85,32 +96,38 @@ def _export_module(
     label, xlsx_fn, pdf_fn = MODULE_BUILDERS[module]
     stamp = date.today().isoformat()
     if fmt == "xlsx":
-        return _xlsx_response(xlsx_fn(db), f"{filename_base}_{stamp}.xlsx")
-    return _pdf_response(pdf_fn(db), f"{filename_base}_{stamp}.pdf")
+        return _xlsx_response(xlsx_fn(db, lang=lang), f"{filename_base}_{stamp}.xlsx")
+    return _pdf_response(pdf_fn(db, lang=lang), f"{filename_base}_{stamp}.pdf")
 
 
 @router.get("/dashboard")
 def export_dashboard(
+    request: Request,
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return _export_module(db, user, "dashboard", format, "dashboard")
+    return _export_module(db, user, "dashboard", format, "dashboard", _resolve_lang(lang, request))
 
 
 @router.get("/gantt")
 def export_gantt(
+    request: Request,
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return _export_module(db, user, "gantt", format, "gantt")
+    return _export_module(db, user, "gantt", format, "gantt", _resolve_lang(lang, request))
 
 
 @router.get("/orders")
 def export_orders(
+    request: Request,
     status: Optional[str] = Query(None, description="activa | terminada"),
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -122,39 +139,47 @@ def export_orders(
     else:
         raise HTTPException(400, "status debe ser activa o terminada")
     suffix = "ordenes_activas" if module == "active_orders" else "ordenes_terminadas"
-    return _export_module(db, user, module, format, suffix)
+    return _export_module(db, user, module, format, suffix, _resolve_lang(lang, request))
 
 
 @router.get("/optimize")
 def export_optimize(
+    request: Request,
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return _export_module(db, user, "optimize", format, "optimizacion")
+    return _export_module(db, user, "optimize", format, "optimizacion", _resolve_lang(lang, request))
 
 
 @router.get("/materials")
 def export_materials(
+    request: Request,
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return _export_module(db, user, "materials", format, "materiales")
+    return _export_module(db, user, "materials", format, "materiales", _resolve_lang(lang, request))
 
 
 @router.get("/machines")
 def export_machines(
+    request: Request,
     format: ExportFormat = Query("xlsx", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return _export_module(db, user, "machines", format, "maquinas")
+    return _export_module(db, user, "machines", format, "maquinas", _resolve_lang(lang, request))
 
 
 @router.get("/complete")
 def export_complete(
+    request: Request,
     format: ExportFormat = Query("zip", alias="format"),
+    lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -162,10 +187,11 @@ def export_complete(
     if not modules:
         raise HTTPException(403, "No tienes permisos para exportar ningún módulo")
     stamp = date.today().isoformat()
+    locale = _resolve_lang(lang, request)
     if format == "xlsx":
-        return _xlsx_response(build_complete_workbook(db, modules), f"gantt_produccion_completo_{stamp}.xlsx")
+        return _xlsx_response(build_complete_workbook(db, modules, lang=locale), f"gantt_produccion_completo_{stamp}.xlsx")
     if format == "pdf":
-        return _pdf_response(build_complete_pdf(db, modules), f"gantt_produccion_completo_{stamp}.pdf")
+        return _pdf_response(build_complete_pdf(db, modules, lang=locale), f"gantt_produccion_completo_{stamp}.pdf")
     if format == "zip":
-        return _zip_response(build_complete_zip(db, modules), f"gantt_produccion_completo_{stamp}.zip")
+        return _zip_response(build_complete_zip(db, modules, lang=locale), f"gantt_produccion_completo_{stamp}.zip")
     raise HTTPException(400, "format debe ser xlsx, pdf o zip")

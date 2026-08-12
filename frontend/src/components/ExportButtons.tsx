@@ -12,14 +12,14 @@ interface ExportButtonsProps {
 }
 
 export default function ExportButtons({ basePath, filenameBase, className = '', onError }: ExportButtonsProps) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [loading, setLoading] = useState<ExportFormat | null>(null)
 
   const download = async (format: ExportFormat) => {
     setLoading(format)
     try {
       const ext = format === 'xlsx' ? 'xlsx' : 'pdf'
-      const path = buildExportPath(basePath, { format })
+      const path = buildExportPath(basePath, { format, lang })
       await downloadFromApi(path, `${filenameBase}.${ext}`)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : t('error')
@@ -59,13 +59,13 @@ interface CompleteExportProps {
 }
 
 export function CompleteExportButtons({ className = '', onError }: CompleteExportProps) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [loading, setLoading] = useState<'xlsx' | 'pdf' | 'zip' | null>(null)
 
   const download = async (format: 'xlsx' | 'pdf' | 'zip') => {
     setLoading(format)
     try {
-      const path = buildExportPath('/export/complete', { format })
+      const path = buildExportPath('/export/complete', { format, lang })
       await downloadFromApi(path, `gantt_produccion_completo.${format}`)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : t('error')

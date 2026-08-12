@@ -1,5 +1,15 @@
 import { getAuthToken } from '../api/client'
 
+const LANG_STORAGE_KEY = 'gantt-lang'
+
+export function getExportLang(): string {
+  const saved = localStorage.getItem(LANG_STORAGE_KEY)
+  if (saved === 'en' || saved === 'sk' || saved === 'it' || saved === 'es') return saved
+  const nav = navigator.language.slice(0, 2)
+  if (nav === 'en' || nav === 'sk' || nav === 'it') return nav
+  return 'es'
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -21,8 +31,17 @@ export function buildExportPath(basePath: string, params: Record<string, string>
 
 export async function downloadFromApi(path: string, filename: string) {
   const token = getAuthToken()
-  const res = await fetch(`/api${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const lang = getExportLang()
+  const [pathname, existing] = path.split('?')
+  const params = new URLSearchParams(existing ?? '')
+  if (!params.get('lang')) params.set('lang', lang)
+  const query = params.toString()
+  const url = `/api${pathname}${query ? `?${query}` : ''}`
+  const res = await fetch(url, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Accept-Language': lang,
+    },
   })
   if (!res.ok) {
     let message = 'Error al descargar'

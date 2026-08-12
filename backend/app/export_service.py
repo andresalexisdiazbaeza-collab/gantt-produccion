@@ -22,6 +22,7 @@ from reportlab.lib.units import cm  # noqa: E402
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from .export_i18n import ExportTranslator, get_export_translator
 from .models import ItemStatus, MachineConfig, MaterialConfig, ProductionItem
 from .optimize_service import build_optimization_preview
 from .routers.dashboard import get_dashboard_stats
@@ -78,7 +79,9 @@ def _order_row(item: dict) -> List[Any]:
     ]
 
 
-def _compliance_label(item: dict) -> str:
+def _compliance_label(item: dict, tr: Optional[ExportTranslator] = None) -> str:
+    if tr:
+        return tr.compliance_label(item)
     status = item.get("delivery_status")
     if status == "late" or item.get("is_late"):
         return f"Atrasada +{item.get('days_late', 0)} d"
@@ -90,6 +93,30 @@ def _compliance_label(item: dict) -> str:
     if status == "pending":
         return "Sin fecha fin"
     return ""
+
+
+def _machine_sort_key(name: str) -> tuple:
+    try:
+        return (0, int(str(name).strip()))
+    except ValueError:
+        return (1, str(name).lower())
+
+
+def _group_by_machine(items: List[dict], tr: ExportTranslator) -> List[tuple[str, List[dict]]]:
+    buckets: dict[str, List[dict]] = {}
+    for item in items:
+        machine = item.get("machine_name") or tr.t("unassigned")
+        buckets.setdefault(machine, []).append(item)
+    groups: List[tuple[str, List[dict]]] = []
+    for machine in sorted(buckets.keys(), key=_machine_sort_key):
+        group = sorted(buckets[machine], key=lambda x: str(x.get("start_date") or ""))
+        groups.append((machine, group))
+    return groups
+
+
+def _safe_sheet_name(name: str, prefix: str = "") -> str:
+    cleaned = "".join(c for c in str(name) if c.isalnum() or c in " -_").strip() or "M"
+    return (f"{prefix}{cleaned}"[:31]).strip()
 
 
 def _write_table(ws, headers: Sequence[str], rows: Sequence[Sequence[Any]], start_row: int = 1) -> int:
@@ -169,7 +196,7 @@ def _fetch_orders(db: Session, status: Optional[str] = None) -> List[dict]:
     return [item_to_dict(i) for i in items]
 
 
-def build_orders_workbook(db: Session, status: Optional[str] = None, title: str = "Ordenes") -> Workbook:
+def build_orders_workbook(db: Session, status: Optional[str] = None, title: str = "Ordenes", lang: str = "es") -> Workbook:
     rows = [_order_row(i) for i in _fetch_orders(db, status)]
     wb = Workbook()
     ws = wb.active
@@ -207,44 +234,80 @@ def _scheduled_active_items(db: Session) -> List[dict]:
     return [i for i in items if i.get("start_date") and i.get("finish_date")]
 
 
-def _build_gantt_timeline_figure(items: List[dict]):
-    scheduled = sorted(
-        [i for i in items if i.get("start_date") and i.get("finish_date")],
-        key=lambda x: (x.get("machine_name") or "ZZZ", str(x.get("start_date") or "")),
-    )
-    if not scheduled:
+def _build_gantt_timeline_figure(items: List[dict], tr: ExportTranslator, machine_filter: Optional[str] = None):
+    if machine_filter:
+        items = [
+            i for i in items
+            if (i.get("machine_name") or tr.t("unassigned")) == machine_filter
+        ]
+    groups = _group_by_machine(items, tr)
+    if not groups:
         return None
 
-    fig_height = max(5, min(28, len(scheduled) * 0.42))
+    row_count = sum(1 + len(group) + 1 for _, group in groups)
+    fig_height = max(4.5, min(30, row_count * 0.55))
     fig, ax = plt.subplots(figsize=(14, fig_height))
 
+    y_pos = 0
+    y_ticks: List[float] = []
     y_labels: List[str] = []
-    for y, item in enumerate(scheduled):
-        start = _parse_date(item["start_date"])
-        finish = _parse_date(item["finish_date"])
-        if not start or not finish:
-            continue
-        duration = max(1, (finish - start).days + 1)
-        late = bool(item.get("is_late"))
-        color = "#ef4444" if late else "#3b82f6"
-        start_num = mdates.date2num(start)
-        ax.barh(y, duration, left=start_num, height=0.72, color=color, edgecolor="white", linewidth=0.5)
+    min_date: Optional[date] = None
+    max_date: Optional[date] = None
 
-        label = str(item.get("order_number") or "")
-        customer = (item.get("customer") or "")[:14]
-        if customer:
-            label = f"{label} · {customer}"
-        ax.text(start_num + 0.4, y, label[:28], va="center", fontsize=7, color="white", fontweight="bold")
+    for machine, group_items in groups:
+        ax.axhspan(y_pos - 0.42, y_pos + 0.42, color="#1E3A5F", alpha=0.08, zorder=0)
+        y_ticks.append(y_pos)
+        y_labels.append(f"▌ {tr.t('machine_section', name=machine)} ({len(group_items)})")
+        y_pos += 1
 
-        machine = item.get("machine_name") or "Sin máquina"
-        y_labels.append(f"{machine} | {item.get('order_number', '')}")
+        for item in group_items:
+            start = _parse_date(item["start_date"])
+            finish = _parse_date(item["finish_date"])
+            if not start or not finish:
+                continue
+            min_date = start if min_date is None else min(min_date, start)
+            max_date = finish if max_date is None else max(max_date, finish)
+            duration = max(1, (finish - start).days + 1)
+            late = bool(item.get("is_late"))
+            color = "#ef4444" if late else "#3b82f6"
+            start_num = mdates.date2num(start)
+            ax.barh(y_pos, duration, left=start_num, height=0.68, color=color, edgecolor="white", linewidth=0.5, zorder=2)
 
-    ax.set_yticks(range(len(y_labels)))
+            order = str(item.get("order_number") or "")
+            customer = (item.get("customer") or "")[:16]
+            bar_label = f"{order} · {customer}" if customer else order
+            ax.text(
+                start_num + 0.35,
+                y_pos,
+                bar_label[:32],
+                va="center",
+                fontsize=7,
+                color="white",
+                fontweight="bold",
+                zorder=3,
+            )
+            y_ticks.append(y_pos)
+            y_labels.append(f"   {order}")
+            y_pos += 1
+
+        y_pos += 0.55
+
+    ax.set_yticks(y_ticks)
     ax.set_yticklabels(y_labels, fontsize=7)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
-    ax.set_title(f"{APP_TITLE} — Diagrama Gantt", fontsize=13, color="#1E3A5F", fontweight="bold")
-    ax.set_xlabel("Calendario de producción")
+    title_suffix = f" — {tr.t('machine_section', name=machine_filter)}" if machine_filter else ""
+    ax.set_title(
+        f"{tr.t('app_title')} — {tr.t('gantt_chart_title')}{title_suffix}",
+        fontsize=13,
+        color="#1E3A5F",
+        fontweight="bold",
+        pad=12,
+    )
+    ax.set_xlabel(tr.t("gantt_calendar"), fontsize=10, color="#475569")
+    if min_date and max_date:
+        pad = mdates.date2num(min_date) - 1
+        ax.set_xlim(pad, mdates.date2num(max_date) + 2)
     ax.invert_yaxis()
     ax.grid(axis="x", alpha=0.25, linestyle="--")
     fig.autofmt_xdate(rotation=30)
@@ -263,50 +326,112 @@ def _fig_to_xlsx_image(fig, width: int = 960, height: int = 540) -> XLImage:
     return img
 
 
-def _add_gantt_sheet(wb: Workbook, db: Session) -> None:
+def _gantt_table_headers(tr: ExportTranslator) -> List[str]:
+    return [
+        tr.t("machine"), tr.t("order"), tr.t("customer"), tr.t("start"),
+        tr.t("finish"), tr.t("days"), tr.t("delivery"), tr.t("compliance"),
+    ]
+
+
+def _gantt_table_row(item: dict, machine: str, tr: ExportTranslator) -> List[Any]:
+    return [
+        machine,
+        item.get("order_number"),
+        item.get("customer"),
+        item.get("start_date"),
+        item.get("finish_date"),
+        item.get("working_days"),
+        item.get("delivery_date"),
+        _compliance_label(item, tr),
+    ]
+
+
+def _write_machine_summary_table(ws, scheduled: List[dict], tr: ExportTranslator, start_row: int = 1) -> int:
+    groups = _group_by_machine(scheduled, tr)
+    headers = [
+        tr.t("machine"), tr.t("total_orders"), tr.t("working_days"),
+        tr.t("late_orders"), tr.t("on_time"),
+    ]
+    rows: List[List[Any]] = []
+    for machine, group in groups:
+        late = sum(1 for i in group if i.get("is_late"))
+        on_time = sum(1 for i in group if i.get("delivery_status") == "on_time")
+        days = round(sum(float(i.get("working_days") or 0) for i in group), 2)
+        rows.append([machine, len(group), days, late, on_time])
+    return _write_table(ws, headers, rows, start_row=start_row)
+
+
+def _add_machine_gantt_sheets(wb: Workbook, scheduled: List[dict], tr: ExportTranslator) -> None:
+    groups = _group_by_machine(scheduled, tr)
+    for machine, group in groups:
+        sheet_name = _safe_sheet_name(machine, "M ")
+        ws = wb.create_sheet(sheet_name)
+        ws["A1"] = tr.t("machine_section", name=machine)
+        ws["A1"].font = TITLE_FONT
+        ws["A2"] = (
+            f"{tr.t('gantt_generated')}: {datetime.now().strftime('%d/%m/%Y %H:%M')} · "
+            f"{tr.t('machine_orders', count=len(group))}"
+        )
+        ws.merge_cells("A2:H2")
+
+        rows = [_gantt_table_row(item, machine, tr) for item in group]
+        table_end = _write_table(ws, _gantt_table_headers(tr), rows, start_row=4)
+
+        fig = _build_gantt_timeline_figure(group, tr, machine_filter=machine)
+        if fig:
+            img_height = min(620, max(240, len(group) * 34 + 80))
+            ws.add_image(_fig_to_xlsx_image(fig, width=980, height=img_height), f"A{table_end + 3}")
+
+        legend_row = table_end + 3 + max(12, len(group) // 2 + 8)
+        ws.cell(row=legend_row, column=1, value=f"{tr.t('legend_title')}:").font = Font(bold=True)
+        ws.cell(row=legend_row + 1, column=1, value=tr.t("legend_on_time"))
+        ws.cell(row=legend_row + 2, column=1, value=tr.t("legend_late"))
+
+
+def _add_gantt_sheet(wb: Workbook, db: Session, lang: str = "es") -> None:
+    tr = get_export_translator(lang)
     scheduled = _scheduled_active_items(db)
-    ws = wb.create_sheet("Gantt")
-    ws["A1"] = f"{APP_TITLE} — Plan Gantt"
+
+    ws = wb.create_sheet(tr.t("sheet_summary")[:31])
+    ws["A1"] = f"{tr.t('app_title')} — {tr.t('gantt_plan_title')}"
     ws["A1"].font = TITLE_FONT
-    ws["A2"] = f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')} · {len(scheduled)} órdenes programadas"
+    ws["A2"] = (
+        f"{tr.t('gantt_generated')}: {datetime.now().strftime('%d/%m/%Y %H:%M')} · "
+        f"{len(scheduled)} {tr.t('gantt_scheduled_orders')}"
+    )
     ws.merge_cells("A2:H2")
 
     if not scheduled:
-        ws["A4"] = "No hay órdenes con máquina, fecha inicio y fecha fin asignadas."
+        ws["A4"] = tr.t("gantt_no_schedule")
         return
 
-    headers = ["Máquina", "Orden", "Cliente", "Inicio", "Fin", "Días", "Entrega", "Cumplimiento"]
-    rows = [[
-        i.get("machine_name"),
-        i.get("order_number"),
-        i.get("customer"),
-        i.get("start_date"),
-        i.get("finish_date"),
-        i.get("working_days"),
-        i.get("delivery_date"),
-        _compliance_label(i),
-    ] for i in scheduled]
-    table_end = _write_table(ws, headers, rows, start_row=4)
+    ws["A4"] = tr.t("summary_by_machine")
+    ws["A4"].font = Font(bold=True, size=11, color="1E3A5F")
+    summary_end = _write_machine_summary_table(ws, scheduled, tr, start_row=5)
 
-    fig = _build_gantt_timeline_figure(scheduled)
+    fig = _build_gantt_timeline_figure(scheduled, tr)
     if fig:
-        img_height = min(720, max(280, len(scheduled) * 28))
-        ws.add_image(_fig_to_xlsx_image(fig, width=980, height=img_height), f"A{table_end + 3}")
+        img_height = min(780, max(320, len(scheduled) * 22 + 120))
+        ws.add_image(_fig_to_xlsx_image(fig, width=980, height=img_height), f"A{summary_end + 3}")
 
-    # Leyenda
-    legend_row = table_end + 3 + (len(scheduled) // 3) + 18
-    ws.cell(row=legend_row, column=1, value="Leyenda:").font = Font(bold=True)
-    ws.cell(row=legend_row + 1, column=1, value="Azul = a tiempo")
-    ws.cell(row=legend_row + 2, column=1, value="Rojo = atrasada vs fecha ofrecida")
+    legend_row = summary_end + 3 + max(16, len(scheduled) // 2 + 10)
+    ws.cell(row=legend_row, column=1, value=f"{tr.t('legend_title')}:").font = Font(bold=True)
+    ws.cell(row=legend_row + 1, column=1, value=tr.t("legend_on_time"))
+    ws.cell(row=legend_row + 2, column=1, value=tr.t("legend_late"))
+    ws.cell(row=legend_row + 3, column=1, value=tr.t("gantt_legend"))
+
+    _add_machine_gantt_sheets(wb, scheduled, tr)
 
 
-def build_active_orders_gantt_workbook(db: Session) -> Workbook:
-    wb = build_orders_workbook(db, ItemStatus.ACTIVA.value, "Ordenes activas")
-    _add_gantt_sheet(wb, db)
+def build_active_orders_gantt_workbook(db: Session, lang: str = "es") -> Workbook:
+    tr = get_export_translator(lang)
+    wb = build_orders_workbook(db, ItemStatus.ACTIVA.value, tr.t("sheet_orders"))
+    _add_gantt_sheet(wb, db, lang)
     return wb
 
 
-def build_active_orders_gantt_pdf(db: Session) -> bytes:
+def build_active_orders_gantt_pdf(db: Session, lang: str = "es") -> bytes:
+    tr = get_export_translator(lang)
     items = _fetch_orders(db, ItemStatus.ACTIVA.value)
     scheduled = _scheduled_active_items(db)
     buf = BytesIO()
@@ -315,38 +440,67 @@ def build_active_orders_gantt_pdf(db: Session) -> bytes:
     styles.add(ParagraphStyle(name="Subtitle", fontSize=10, textColor=colors.grey))
 
     story: list[Any] = [
-        _pdf_section_title(f"{APP_TITLE} — Órdenes activas + Gantt", styles),
+        _pdf_section_title(f"{tr.t('app_title')} — {tr.t('active_orders_gantt')}", styles),
         Paragraph(
-            f"Registros: {len(items)} · Programadas: {len(scheduled)} · "
-            f"{datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            f"{tr.t('records')}: {len(items)} · {tr.t('scheduled')}: {len(scheduled)} · "
+            f"{tr.t('gantt_generated')}: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
             styles["Subtitle"],
         ),
         Spacer(1, 0.3 * cm),
     ]
 
     headers = [
-        "Orden", "Cliente", "Material", "Máquina", "Inicio", "Fin",
-        "Entrega", "Cumplimiento", "Kg",
+        tr.t("order"), tr.t("customer"), tr.t("material"), tr.t("machine"),
+        tr.t("start"), tr.t("finish"), tr.t("delivery"), tr.t("compliance"), tr.t("kg"),
     ]
     rows = [[
         i.get("order_number"), i.get("customer"), i.get("raw_material"),
         i.get("machine_name"), i.get("start_date"), i.get("finish_date"),
-        i.get("delivery_date"), _compliance_label(i), i.get("kg_totales"),
+        i.get("delivery_date"), _compliance_label(i, tr), i.get("kg_totales"),
     ] for i in items[:150]]
     story.append(_pdf_table([headers] + rows))
     if len(items) > 150:
-        story.append(Paragraph(f"... y {len(items) - 150} registros más en Excel", styles["Italic"]))
+        story.append(Paragraph(tr.t("more_in_excel", count=len(items) - 150), styles["Italic"]))
 
     if scheduled:
-        fig = _build_gantt_timeline_figure(scheduled)
-        if fig:
+        groups = _group_by_machine(scheduled, tr)
+        story += [
+            PageBreak(),
+            _pdf_section_title(tr.t("summary_by_machine"), styles),
+            Spacer(1, 0.2 * cm),
+        ]
+        summary_headers = [
+            tr.t("machine"), tr.t("total_orders"), tr.t("working_days"),
+            tr.t("late_orders"), tr.t("on_time"),
+        ]
+        summary_rows = []
+        for machine, group in groups:
+            late = sum(1 for i in group if i.get("is_late"))
+            on_time = sum(1 for i in group if i.get("delivery_status") == "on_time")
+            days = round(sum(float(i.get("working_days") or 0) for i in group), 2)
+            summary_rows.append([machine, len(group), days, late, on_time])
+        story.append(_pdf_table([summary_headers] + summary_rows))
+
+        story += [
+            PageBreak(),
+            _pdf_section_title(tr.t("gantt_chart_title"), styles),
+            Paragraph(tr.t("gantt_legend"), styles["Subtitle"]),
+            Spacer(1, 0.3 * cm),
+        ]
+        overview_fig = _build_gantt_timeline_figure(scheduled, tr)
+        if overview_fig:
+            story.append(_fig_to_image(overview_fig, width=24 * cm))
+
+        for machine, group in groups:
+            fig = _build_gantt_timeline_figure(group, tr, machine_filter=machine)
+            if not fig:
+                continue
             story += [
                 PageBreak(),
-                _pdf_section_title("Diagrama Gantt", styles),
-                Paragraph(
-                    "Barras azules = a tiempo · Barras rojas = atrasadas vs fecha ofrecida",
-                    styles["Subtitle"],
-                ),
+                _pdf_section_title(tr.t("machine_section", name=machine), styles),
+                Paragraph(tr.t("machine_orders", count=len(group)), styles["Subtitle"]),
+                Spacer(1, 0.25 * cm),
+                _pdf_table([_gantt_table_headers(tr)] + [_gantt_table_row(i, machine, tr) for i in group]),
                 Spacer(1, 0.3 * cm),
                 _fig_to_image(fig, width=24 * cm),
             ]
@@ -355,7 +509,12 @@ def build_active_orders_gantt_pdf(db: Session) -> bytes:
         late = sum(1 for i in items if i.get("is_late"))
         no_date = sum(1 for i in items if i.get("delivery_status") == "no_date")
         pending = sum(1 for i in items if i.get("delivery_status") == "pending")
-        labels_vals = [("A tiempo", on_time), ("Atrasadas", late), ("Sin fecha", no_date), ("Sin fin", pending)]
+        labels_vals = [
+            (tr.t("on_time"), on_time),
+            (tr.t("late"), late),
+            (tr.t("no_date"), no_date),
+            (tr.t("pending_finish"), pending),
+        ]
         filtered = [(label, val) for label, val in labels_vals if val > 0]
         if filtered:
             pie_labels, pie_values = zip(*filtered)
@@ -363,7 +522,7 @@ def build_active_orders_gantt_pdf(db: Session) -> bytes:
                 Spacer(1, 0.4 * cm),
                 _fig_to_image(_build_chart_figure(
                     list(pie_labels), list(pie_values),
-                    "Cumplimiento de entregas",
+                    tr.t("delivery_compliance"),
                     "pie",
                 ), width=14 * cm),
             ]
@@ -372,15 +531,98 @@ def build_active_orders_gantt_pdf(db: Session) -> bytes:
     return buf.getvalue()
 
 
-def build_gantt_workbook(db: Session) -> Workbook:
-    return build_active_orders_gantt_workbook(db)
+def build_gantt_workbook(db: Session, lang: str = "es") -> Workbook:
+    tr = get_export_translator(lang)
+    scheduled = _scheduled_active_items(db)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = tr.t("sheet_summary")[:31]
+    ws["A1"] = f"{tr.t('app_title')} — {tr.t('gantt_plan_title')}"
+    ws["A1"].font = TITLE_FONT
+    ws["A2"] = (
+        f"{tr.t('gantt_generated')}: {datetime.now().strftime('%d/%m/%Y %H:%M')} · "
+        f"{len(scheduled)} {tr.t('gantt_scheduled_orders')}"
+    )
+    ws.merge_cells("A2:H2")
+    if not scheduled:
+        ws["A4"] = tr.t("gantt_no_schedule")
+        return wb
+    ws["A4"] = tr.t("summary_by_machine")
+    ws["A4"].font = Font(bold=True, size=11, color="1E3A5F")
+    summary_end = _write_machine_summary_table(ws, scheduled, tr, start_row=5)
+    fig = _build_gantt_timeline_figure(scheduled, tr)
+    if fig:
+        img_height = min(780, max(320, len(scheduled) * 22 + 120))
+        ws.add_image(_fig_to_xlsx_image(fig, width=980, height=img_height), f"A{summary_end + 3}")
+    _add_machine_gantt_sheets(wb, scheduled, tr)
+    return wb
 
 
-def build_gantt_pdf(db: Session) -> bytes:
-    return build_active_orders_gantt_pdf(db)
+def build_gantt_pdf(db: Session, lang: str = "es") -> bytes:
+    tr = get_export_translator(lang)
+    scheduled = _scheduled_active_items(db)
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="Subtitle", fontSize=10, textColor=colors.grey))
+
+    story: list[Any] = [
+        _pdf_section_title(f"{tr.t('app_title')} — {tr.t('gantt_chart_title')}", styles),
+        Paragraph(
+            f"{tr.t('scheduled')}: {len(scheduled)} · "
+            f"{tr.t('gantt_generated')}: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            styles["Subtitle"],
+        ),
+        Spacer(1, 0.3 * cm),
+    ]
+
+    if not scheduled:
+        story.append(Paragraph(tr.t("gantt_no_schedule"), styles["Normal"]))
+        doc.build(story)
+        return buf.getvalue()
+
+    groups = _group_by_machine(scheduled, tr)
+    summary_headers = [
+        tr.t("machine"), tr.t("total_orders"), tr.t("working_days"),
+        tr.t("late_orders"), tr.t("on_time"),
+    ]
+    summary_rows = []
+    for machine, group in groups:
+        late = sum(1 for i in group if i.get("is_late"))
+        on_time = sum(1 for i in group if i.get("delivery_status") == "on_time")
+        days = round(sum(float(i.get("working_days") or 0) for i in group), 2)
+        summary_rows.append([machine, len(group), days, late, on_time])
+    story.append(_pdf_table([summary_headers] + summary_rows))
+
+    story += [
+        PageBreak(),
+        Paragraph(tr.t("gantt_legend"), styles["Subtitle"]),
+        Spacer(1, 0.2 * cm),
+    ]
+    overview_fig = _build_gantt_timeline_figure(scheduled, tr)
+    if overview_fig:
+        story.append(_fig_to_image(overview_fig, width=24 * cm))
+
+    for machine, group in groups:
+        fig = _build_gantt_timeline_figure(group, tr, machine_filter=machine)
+        if not fig:
+            continue
+        story += [
+            PageBreak(),
+            _pdf_section_title(tr.t("machine_section", name=machine), styles),
+            Paragraph(tr.t("machine_orders", count=len(group)), styles["Subtitle"]),
+            Spacer(1, 0.25 * cm),
+            _pdf_table([_gantt_table_headers(tr)] + [_gantt_table_row(i, machine, tr) for i in group]),
+            Spacer(1, 0.3 * cm),
+            _fig_to_image(fig, width=24 * cm),
+        ]
+
+    doc.build(story)
+    return buf.getvalue()
 
 
-def build_dashboard_workbook(db: Session) -> Workbook:
+def build_dashboard_workbook(db: Session, lang: str = "es") -> Workbook:
+    stats = get_dashboard_stats(db)
     wb = Workbook()
 
     ws0 = wb.active
@@ -428,7 +670,7 @@ def build_dashboard_workbook(db: Session) -> Workbook:
     return wb
 
 
-def build_materials_workbook(db: Session) -> Workbook:
+def build_materials_workbook(db: Session, lang: str = "es") -> Workbook:
     materials = db.query(MaterialConfig).order_by(MaterialConfig.material).all()
     wb = Workbook()
     ws = wb.active
@@ -440,7 +682,7 @@ def build_materials_workbook(db: Session) -> Workbook:
     return wb
 
 
-def build_machines_workbook(db: Session) -> Workbook:
+def build_machines_workbook(db: Session, lang: str = "es") -> Workbook:
     machines = db.query(MachineConfig).order_by(MachineConfig.name).all()
     wb = Workbook()
     ws = wb.active
@@ -452,7 +694,7 @@ def build_machines_workbook(db: Session) -> Workbook:
     return wb
 
 
-def build_optimize_workbook(db: Session) -> Workbook:
+def build_optimize_workbook(db: Session, lang: str = "es") -> Workbook:
     preview = build_optimization_preview(db)
     wb = Workbook()
     ws = wb.active
@@ -546,7 +788,7 @@ def _build_chart_figure(labels: List[str], values: List[float], title: str, kind
     return fig
 
 
-def build_dashboard_pdf(db: Session) -> bytes:
+def build_dashboard_pdf(db: Session, lang: str = "es") -> bytes:
     stats = get_dashboard_stats(db)
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1.5 * cm, rightMargin=1.5 * cm)
@@ -585,7 +827,7 @@ def build_dashboard_pdf(db: Session) -> bytes:
     return buf.getvalue()
 
 
-def build_orders_pdf(db: Session, status: Optional[str] = None, title: str = "Órdenes") -> bytes:
+def build_orders_pdf(db: Session, status: Optional[str] = None, title: str = "Órdenes", lang: str = "es") -> bytes:
     items = _fetch_orders(db, status)
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm)
@@ -607,7 +849,7 @@ def build_orders_pdf(db: Session, status: Optional[str] = None, title: str = "Ó
     return buf.getvalue()
 
 
-def build_materials_pdf(db: Session) -> bytes:
+def build_materials_pdf(db: Session, lang: str = "es") -> bytes:
     materials = db.query(MaterialConfig).order_by(MaterialConfig.material).all()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4)
@@ -621,7 +863,7 @@ def build_materials_pdf(db: Session) -> bytes:
     return buf.getvalue()
 
 
-def build_machines_pdf(db: Session) -> bytes:
+def build_machines_pdf(db: Session, lang: str = "es") -> bytes:
     machines = db.query(MachineConfig).order_by(MachineConfig.name).all()
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4))
@@ -638,7 +880,7 @@ def build_machines_pdf(db: Session) -> bytes:
     return buf.getvalue()
 
 
-def build_optimize_pdf(db: Session) -> bytes:
+def build_optimize_pdf(db: Session, lang: str = "es") -> bytes:
     preview = build_optimization_preview(db)
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4))
@@ -707,34 +949,38 @@ MODULE_BUILDERS = {
     "dashboard": ("Dashboard", build_dashboard_workbook, build_dashboard_pdf),
     "gantt": ("Gantt", build_gantt_workbook, build_gantt_pdf),
     "active_orders": ("Ordenes activas", build_active_orders_gantt_workbook, build_active_orders_gantt_pdf),
-    "completed": ("Ordenes terminadas", lambda db: build_orders_workbook(db, ItemStatus.TERMINADA.value, "Terminadas"), lambda db: build_orders_pdf(db, ItemStatus.TERMINADA.value, "Órdenes terminadas")),
+    "completed": (
+        "Ordenes terminadas",
+        lambda db, lang="es": build_orders_workbook(db, ItemStatus.TERMINADA.value, "Terminadas", lang),
+        lambda db, lang="es": build_orders_pdf(db, ItemStatus.TERMINADA.value, "Órdenes terminadas", lang),
+    ),
     "optimize": ("Optimizacion", build_optimize_workbook, build_optimize_pdf),
     "materials": ("Materiales", build_materials_workbook, build_materials_pdf),
     "machines": ("Maquinas", build_machines_workbook, build_machines_pdf),
 }
 
 
-def build_complete_workbook(db: Session, modules: Sequence[str]) -> Workbook:
+def build_complete_workbook(db: Session, modules: Sequence[str], lang: str = "es") -> Workbook:
     wb = Workbook()
     _cover_sheet(wb, [MODULE_BUILDERS[m][0] for m in modules if m in MODULE_BUILDERS])
     for key in modules:
         if key not in MODULE_BUILDERS:
             continue
         label, xlsx_fn, _ = MODULE_BUILDERS[key]
-        _merge_workbooks(wb, xlsx_fn(db), prefix=f"{label} - ")
+        _merge_workbooks(wb, xlsx_fn(db, lang=lang), prefix=f"{label} - ")
     if "Portada" in wb.sheetnames and len(wb.sheetnames) > 1:
         portada = wb["Portada"]
         wb._sheets = [portada] + [s for s in wb.worksheets if s != portada]
     return wb
 
 
-def build_complete_pdf(db: Session, modules: Sequence[str]) -> bytes:
+def build_complete_pdf(db: Session, modules: Sequence[str], lang: str = "es") -> bytes:
     parts: list[bytes] = []
     for key in modules:
         if key not in MODULE_BUILDERS:
             continue
         _, _, pdf_fn = MODULE_BUILDERS[key]
-        parts.append(pdf_fn(db))
+        parts.append(pdf_fn(db, lang=lang))
     if not parts:
         return b""
     if len(parts) == 1:
@@ -795,18 +1041,18 @@ def build_complete_pdf(db: Session, modules: Sequence[str]) -> bytes:
     return buf.getvalue()
 
 
-def build_complete_zip(db: Session, modules: Sequence[str]) -> bytes:
+def build_complete_zip(db: Session, modules: Sequence[str], lang: str = "es") -> bytes:
     buf = BytesIO()
     stamp = _today_stamp()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        xlsx = build_complete_workbook(db, modules)
+        xlsx = build_complete_workbook(db, modules, lang=lang)
         zf.writestr(f"gantt_produccion_completo_{stamp}.xlsx", workbook_to_bytes(xlsx))
-        zf.writestr(f"gantt_produccion_completo_{stamp}.pdf", build_complete_pdf(db, modules))
+        zf.writestr(f"gantt_produccion_completo_{stamp}.pdf", build_complete_pdf(db, modules, lang=lang))
         for key in modules:
             if key not in MODULE_BUILDERS:
                 continue
             label, xlsx_fn, pdf_fn = MODULE_BUILDERS[key]
             safe = label.lower().replace(" ", "_")
-            zf.writestr(f"{safe}_{stamp}.xlsx", workbook_to_bytes(xlsx_fn(db)))
-            zf.writestr(f"{safe}_{stamp}.pdf", pdf_fn(db))
+            zf.writestr(f"{safe}_{stamp}.xlsx", workbook_to_bytes(xlsx_fn(db, lang=lang)))
+            zf.writestr(f"{safe}_{stamp}.pdf", pdf_fn(db, lang=lang))
     return buf.getvalue()
