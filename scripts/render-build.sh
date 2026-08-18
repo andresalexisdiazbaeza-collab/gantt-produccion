@@ -11,4 +11,4 @@ cd "$ROOT/frontend"
 npm ci
 npm run build
 
-echo "==> Build completado"
+echo "==> Build completado (commit: $(git rev-parse --short HEAD 2>/dev/null || echo unknown))"

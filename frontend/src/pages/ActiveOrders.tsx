@@ -12,7 +12,7 @@ import type { Machine, ProductionItem } from '../types'
 
 export default function ActiveOrders() {
   const { t } = useI18n()
-  const { canModifyItem, canView } = useAuth()
+  const { canModifyItem, canModify, canView } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<ProductionItem[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
@@ -123,7 +123,7 @@ export default function ActiveOrders() {
           {canView('optimize') && (
             <Link to="/optimizar" className="text-sm text-amber-600 hover:underline">{t('optimizeLink')}</Link>
           )}
-          {canModifyItem('machine') && (
+          {canModify('active_orders') && (
             <button
               type="button"
               onClick={() => setShowNewOrder(true)}
