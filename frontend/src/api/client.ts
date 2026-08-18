@@ -180,6 +180,12 @@ export const api = {
 
   getItems: (status?: string) =>
     request<ProductionItem[]>(`/items${status ? `?status=${status}` : ''}`),
+  createItem: (data: Record<string, unknown>) =>
+    request<ProductionItem>('/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
   updateItem: (id: number, data: {
     machine_id?: number | null
     start_date?: string | null
@@ -264,6 +270,12 @@ export const api = {
     request<void>(`/confection/teams/${id}`, { method: 'DELETE' }),
   getConfectionItems: (status?: string) =>
     request<import('../types').ConfectionItem[]>(`/confection/items${status ? `?status=${status}` : ''}`),
+  createConfectionItem: (data: Record<string, unknown>) =>
+    request<import('../types').ConfectionItem>('/confection/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
   updateConfectionItem: (id: number, data: Record<string, unknown>) =>
     request<import('../types').ConfectionItem>(`/confection/items/${id}`, {
       method: 'PATCH',

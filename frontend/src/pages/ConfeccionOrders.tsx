@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useI18n } from '../i18n/I18nProvider'
+import NewConfectionOrderModal from '../components/NewConfectionOrderModal'
 import type { ConfectionItem, ConfectionTeam } from '../types'
 
 export default function ConfeccionOrders() {
@@ -9,6 +10,7 @@ export default function ConfeccionOrders() {
   const [teams, setTeams] = useState<ConfectionTeam[]>([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState<number | null>(null)
+  const [showNewOrder, setShowNewOrder] = useState(false)
 
   const load = () =>
     Promise.all([api.getConfectionItems('activa'), api.getConfectionTeams(true)])
@@ -44,7 +46,23 @@ export default function ConfeccionOrders() {
 
   return (
     <div className="p-6 space-y-4">
-      <h2 className="text-2xl font-bold">{t('confOrdersTitle')}</h2>
+      {showNewOrder && (
+        <NewConfectionOrderModal
+          teams={teams}
+          onClose={() => setShowNewOrder(false)}
+          onCreated={(item) => setItems(prev => [item, ...prev])}
+        />
+      )}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">{t('confOrdersTitle')}</h2>
+        <button
+          type="button"
+          onClick={() => setShowNewOrder(true)}
+          className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+        >
+          {t('newOrderBtn')}
+        </button>
+      </div>
       {!items.length ? (
         <p className="text-slate-500">{t('confOrdersEmpty')}</p>
       ) : (

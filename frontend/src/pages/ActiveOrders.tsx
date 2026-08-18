@@ -7,6 +7,7 @@ import { applyGanttFilters, emptyGanttFilters, uniqueOptions, type GanttFilterSt
 import ExportButtons from '../components/ExportButtons'
 import { useI18n } from '../i18n/I18nProvider'
 import { formatDeliveryStatus } from '../utils/deliveryStatus'
+import NewOrderModal from '../components/NewOrderModal'
 import type { Machine, ProductionItem } from '../types'
 
 export default function ActiveOrders() {
@@ -20,6 +21,7 @@ export default function ActiveOrders() {
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState<number | null>(null)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [showNewOrder, setShowNewOrder] = useState(false)
 
   const load = useCallback(() => {
     Promise.all([api.getItems('activa'), api.getMachines(true)])
@@ -108,11 +110,27 @@ export default function ActiveOrders() {
 
   return (
     <div className="p-6 space-y-4">
+      {showNewOrder && (
+        <NewOrderModal
+          machines={machines}
+          onClose={() => setShowNewOrder(false)}
+          onCreated={(item) => setItems(prev => [item, ...prev])}
+        />
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{t('activeOrdersTitle')}</h2>
         <div className="flex items-center gap-3">
           {canView('optimize') && (
             <Link to="/optimizar" className="text-sm text-amber-600 hover:underline">{t('optimizeLink')}</Link>
+          )}
+          {canModifyItem('machine') && (
+            <button
+              type="button"
+              onClick={() => setShowNewOrder(true)}
+              className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+            >
+              {t('newOrderBtn')}
+            </button>
           )}
           {canModifyItem('delete_all') && (
             <button

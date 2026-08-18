@@ -49,6 +49,35 @@ class MachineOut(MachineBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProductionItemCreate(BaseModel):
+    # Required
+    order_number: str
+    # Identity
+    customer: Optional[str] = None
+    raw_material: Optional[str] = None
+    titulo: Optional[str] = None
+    color: Optional[str] = None
+    treatment: Optional[str] = None
+    order_type: Optional[str] = None
+    braiding: Optional[str] = None
+    model: Optional[str] = None
+    # Dimensions
+    matriz_mm: Optional[float] = None
+    measure: Optional[str] = None
+    meshes: Optional[float] = None
+    knot: Optional[float] = None
+    pieces: Optional[float] = None
+    piece_length: Optional[float] = None
+    # Weight / commercial
+    kg_totales: Optional[float] = None
+    delivery_date: Optional[date] = None
+    # Planning
+    machine_id: Optional[int] = None
+    start_date: Optional[date] = None
+    comments: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class ItemUpdate(BaseModel):
     machine_id: Optional[int] = None
     start_date: Optional[date] = None

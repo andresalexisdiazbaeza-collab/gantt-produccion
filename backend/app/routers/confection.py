@@ -48,6 +48,43 @@ class TeamOut(BaseModel):
         from_attributes = True
 
 
+class ConfectionItemCreate(BaseModel):
+    # Required
+    po_number: str
+    # Identity
+    customer: Optional[str] = None
+    id_code: Optional[str] = None
+    purchase_order: Optional[str] = None
+    pcs_label: Optional[str] = None
+    quantity: Optional[float] = None
+    product_type: Optional[str] = None
+    color: Optional[str] = None
+    # Dimensions / specs
+    cage_type: Optional[str] = None
+    circumference: Optional[str] = None
+    height: Optional[str] = None
+    mesh_mm: Optional[str] = None
+    twine_size: Optional[str] = None
+    tag_numbers: Optional[str] = None
+    # Metrics
+    kg_cage: Optional[float] = None
+    netting_m2: Optional[float] = None
+    netting_kg: Optional[float] = None
+    total_hours: Optional[float] = None
+    coating_hours: Optional[float] = None
+    # Dates
+    received_date: Optional[date] = None
+    delivery_offered: Optional[date] = None
+    requested_delivery_text: Optional[str] = None
+    netting_status: Optional[str] = None
+    payment_terms: Optional[str] = None
+    # Planning
+    team_id: Optional[int] = None
+    workers_assigned: Optional[int] = None
+    start_date: Optional[date] = None
+    comments: Optional[str] = None
+
+
 class ItemUpdate(BaseModel):
     team_id: Optional[int] = None
     workers_assigned: Optional[int] = None
@@ -114,6 +151,55 @@ def delete_team(team_id: int, db: Session = Depends(get_db), user: User = Depend
 
 
 # ---- Items ----
+@router.post("/items", status_code=201)
+def create_confection_item(
+    data: ConfectionItemCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _require_modify(user, "confection_orders")
+    fp = confection_fingerprint(data.model_dump())
+    if db.query(ConfectionItem).filter(ConfectionItem.fingerprint == fp).first():
+        raise HTTPException(409, "Ya existe una orden con esos mismos datos clave")
+    item = ConfectionItem(
+        fingerprint=fp,
+        status=ItemStatus.ACTIVA.value,
+        po_number=data.po_number,
+        customer=data.customer,
+        id_code=data.id_code,
+        purchase_order=data.purchase_order,
+        pcs_label=data.pcs_label,
+        quantity=data.quantity,
+        product_type=data.product_type,
+        color=data.color,
+        cage_type=data.cage_type,
+        circumference=data.circumference,
+        height=data.height,
+        mesh_mm=data.mesh_mm,
+        twine_size=data.twine_size,
+        tag_numbers=data.tag_numbers,
+        kg_cage=data.kg_cage,
+        netting_m2=data.netting_m2,
+        netting_kg=data.netting_kg,
+        total_hours=data.total_hours,
+        coating_hours=data.coating_hours,
+        received_date=data.received_date,
+        delivery_offered=data.delivery_offered,
+        requested_delivery_text=data.requested_delivery_text,
+        netting_status=data.netting_status,
+        payment_terms=data.payment_terms,
+        team_id=data.team_id,
+        workers_assigned=data.workers_assigned,
+        start_date=data.start_date,
+        comments=data.comments,
+    )
+    recalculate_confection_item(db, item)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return confection_item_to_dict(item)
+
+
 @router.get("/items")
 def list_items(
     status: Optional[str] = Query(None),

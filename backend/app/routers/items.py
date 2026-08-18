@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user
-from ..models import ItemStatus, ProductionItem, User
+from ..fingerprint import build_fingerprint
+from ..models import ItemStatus, MachineConfig, ProductionItem, User
 from ..permissions import can_modify_item_field, can_modify_module
-from ..schemas import ItemOut, ItemUpdate
+from ..schemas import ItemOut, ItemUpdate, ProductionItemCreate
 from ..services import item_to_dict, recalculate_item
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -65,6 +66,53 @@ def _apply_item_update(item: ProductionItem, data: ItemUpdate, user: User) -> No
         if piece_length is None or piece_length <= 0:
             raise HTTPException(400, "La longitud de pieza debe ser mayor que 0")
         item.piece_length = piece_length
+
+
+@router.post("", response_model=ItemOut, status_code=201)
+def create_item(
+    data: ProductionItemCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not can_modify_module(user, "active_orders"):
+        raise HTTPException(403, "No tienes permiso para crear órdenes")
+    fp = build_fingerprint(data.model_dump())
+    if db.query(ProductionItem).filter(ProductionItem.fingerprint == fp).first():
+        raise HTTPException(409, "Ya existe una orden con esos mismos datos clave")
+    item = ProductionItem(
+        fingerprint=fp,
+        status=ItemStatus.ACTIVA.value,
+        order_number=data.order_number,
+        customer=data.customer,
+        raw_material=data.raw_material,
+        titulo=data.titulo,
+        color=data.color,
+        treatment=data.treatment,
+        order_type=data.order_type,
+        braiding=data.braiding,
+        model=data.model,
+        matriz_mm=data.matriz_mm,
+        measure=data.measure,
+        meshes=data.meshes,
+        knot=data.knot,
+        pieces=data.pieces,
+        piece_length=data.piece_length,
+        kg_totales=data.kg_totales,
+        delivery_date=data.delivery_date,
+        machine_id=data.machine_id,
+        start_date=data.start_date,
+        comments=data.comments,
+        notes=data.notes,
+    )
+    if data.machine_id:
+        machine = db.get(MachineConfig, data.machine_id)
+        if machine:
+            item.mts_per_shift = machine.mts_per_shift
+    recalculate_item(db, item)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item_to_dict(item)
 
 
 @router.get("", response_model=list[ItemOut])
