@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n/I18nProvider'
 import NewConfectionOrderModal from '../components/NewConfectionOrderModal'
 import type { ConfectionItem, ConfectionTeam } from '../types'
 
 export default function ConfeccionOrders() {
   const { t } = useI18n()
-  const { canModify } = useAuth()
   const [items, setItems] = useState<ConfectionItem[]>([])
   const [teams, setTeams] = useState<ConfectionTeam[]>([])
   const [error, setError] = useState('')
@@ -55,17 +53,15 @@ export default function ConfeccionOrders() {
           onCreated={(item) => setItems(prev => [item, ...prev])}
         />
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold">{t('confOrdersTitle')}</h2>
-        {canModify('confection_orders') && (
-          <button
-            type="button"
-            onClick={() => setShowNewOrder(true)}
-            className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-          >
-            {t('newOrderBtn')}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setShowNewOrder(true)}
+          className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium"
+        >
+          + {t('newOrderBtn')}
+        </button>
       </div>
       {!items.length ? (
         <p className="text-slate-500">{t('confOrdersEmpty')}</p>

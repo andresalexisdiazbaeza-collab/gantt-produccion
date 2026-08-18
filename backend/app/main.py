@@ -12,7 +12,7 @@ from .seed import seed_database
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Gantt Producción API", version="0.3.1")
+app = FastAPI(title="Gantt Producción API", version="0.3.2")
 
 _default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8002"
 _cors_origins = [o.strip() for o in os.environ.get("GANTT_CORS_ORIGINS", _default_origins).split(",") if o.strip()]
@@ -51,7 +51,7 @@ def startup():
 def health():
     return {
         "status": "ok",
-        "version": "0.3.1",
+        "version": "0.3.2",
         "features": [
             "nuevo-formato-import",
             "gantt-planning-import-optional",

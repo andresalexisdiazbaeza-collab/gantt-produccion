@@ -70,6 +70,7 @@ export function canModifyModule(user: AuthUser | null, module: AppModule): boole
 
 export function canModifyItem(user: AuthUser | null, field: ItemPermissionField): boolean {
   if (!user?.permissions) return false
+  if (user.role === 'admin') return true
   return user.permissions.items[field]?.modify ?? false
 }
 

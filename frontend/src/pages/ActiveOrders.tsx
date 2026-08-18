@@ -12,7 +12,7 @@ import type { Machine, ProductionItem } from '../types'
 
 export default function ActiveOrders() {
   const { t } = useI18n()
-  const { canModifyItem, canModify, canView } = useAuth()
+  const { canModifyItem, canView } = useAuth()
   const navigate = useNavigate()
   const [items, setItems] = useState<ProductionItem[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
@@ -119,19 +119,17 @@ export default function ActiveOrders() {
       )}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{t('activeOrdersTitle')}</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 justify-end">
           {canView('optimize') && (
             <Link to="/optimizar" className="text-sm text-amber-600 hover:underline">{t('optimizeLink')}</Link>
           )}
-          {canModify('active_orders') && (
-            <button
-              type="button"
-              onClick={() => setShowNewOrder(true)}
-              className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              {t('newOrderBtn')}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowNewOrder(true)}
+            className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium"
+          >
+            + {t('newOrderBtn')}
+          </button>
           {canModifyItem('delete_all') && (
             <button
               type="button"

@@ -1,7 +1,7 @@
 export const translations = {
   es: {
     appTitle: 'Gantt Producción',
-    appSubtitle: 'v0.3.1 · Planificación SK',
+    appSubtitle: 'v0.3.2 · Planificación SK',
     navDashboard: 'Dashboard',
     navGantt: 'Gantt',
     navOptimize: 'Gantt optimizada (opc.)',
@@ -331,7 +331,7 @@ export const translations = {
   },
   en: {
     appTitle: 'Production Gantt',
-    appSubtitle: 'v0.3.1 · SK Planning',
+    appSubtitle: 'v0.3.2 · SK Planning',
     navDashboard: 'Dashboard',
     navGantt: 'Gantt',
     navOptimize: 'Optimized Gantt (opt.)',
@@ -661,7 +661,7 @@ export const translations = {
   },
   sk: {
     appTitle: 'Gantt Výroba',
-    appSubtitle: 'v0.3.1 · SK plánovanie',
+    appSubtitle: 'v0.3.2 · SK plánovanie',
     navDashboard: 'Prehľad',
     navGantt: 'Gantt',
     navOptimize: 'Optimalizovaný Gantt (vol.)',
@@ -991,7 +991,7 @@ export const translations = {
   },
   it: {
     appTitle: 'Gantt Produzione',
-    appSubtitle: 'v0.3.1 · Pianificazione SK',
+    appSubtitle: 'v0.3.2 · Pianificazione SK',
     navDashboard: 'Dashboard',
     navGantt: 'Gantt',
     navOptimize: 'Gantt ottimizzato (opz.)',
