@@ -193,6 +193,23 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getOrderCatalog: () => request<import('../types').OrderCatalog>('/catalog'),
+  getOrderCatalogOptions: () => request<Array<{ id: number; category: string; value: string }>>('/catalog/options'),
+  addTitleMaterialCatalogRow: (data: { titulo: string; material: string }) =>
+    request<import('../types').TitleMaterialEntry>('/catalog/title-materials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  deleteTitleMaterialCatalogRow: (id: number) =>
+    request<void>(`/catalog/title-materials/${id}`, { method: 'DELETE' }),
+  addOrderCatalogOption: (data: { category: string; value: string }) =>
+    request<{ id: number; category: string; value: string }>('/catalog/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  deleteOrderCatalogOption: (id: number) =>
+    request<void>(`/catalog/options/${id}`, { method: 'DELETE' }),
   importTitleMaterialCatalog: async (file: File, replace = false) => {
     const form = new FormData()
     form.append('file', file)

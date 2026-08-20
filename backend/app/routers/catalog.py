@@ -54,6 +54,11 @@ class OptionCreate(BaseModel):
     value: str
 
 
+class TitleMaterialCreate(BaseModel):
+    titulo: str
+    material: str
+
+
 def _fmt_option(val: object) -> str:
     if val is None:
         return ""
@@ -149,6 +154,46 @@ async def import_title_materials(
         added += 1
     db.commit()
     return {"imported_count": added, "total_count": len(existing), "parsed_rows": len(rows)}
+
+
+@router.post("/title-materials", response_model=TitleMaterialOut, status_code=201)
+def add_title_material(data: TitleMaterialCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not can_modify_module(user, "materials"):
+        raise HTTPException(403, "No tienes permiso")
+    titulo = data.titulo.strip()
+    material = data.material.strip().upper()
+    if not titulo or not material:
+        raise HTTPException(400, "Título y material son obligatorios")
+    dup = (
+        db.query(TitleMaterialCatalog)
+        .filter(TitleMaterialCatalog.titulo == titulo, TitleMaterialCatalog.material == material)
+        .first()
+    )
+    if dup:
+        return dup
+    row = TitleMaterialCatalog(titulo=titulo, material=material)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/title-materials/{row_id}", status_code=204)
+def delete_title_material(row_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not can_modify_module(user, "materials"):
+        raise HTTPException(403, "No tienes permiso")
+    row = db.get(TitleMaterialCatalog, row_id)
+    if not row:
+        raise HTTPException(404, "Fila no encontrada")
+    db.delete(row)
+    db.commit()
+
+
+@router.get("/options", response_model=list[OptionOut])
+def list_options(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
+    _sync_options_from_items(db)
+    db.commit()
+    return db.query(OrderFieldOption).order_by(OrderFieldOption.category, OrderFieldOption.value).all()
 
 
 @router.post("/options", response_model=OptionOut, status_code=201)

@@ -31,6 +31,7 @@ export default function Layout() {
     { to: '/terminadas', label: t('navCompleted'), module: 'completed' },
     { to: '/usuarios', label: t('navUsers'), module: 'users' },
     { to: '/materiales', label: t('navMaterials'), module: 'materials' },
+    { to: '/materiales/catalogo', label: t('navCatalogAdmin'), module: 'materials' },
     { to: '/maquinas', label: t('navMachines'), module: 'machines' },
   ]
 

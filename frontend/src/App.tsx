@@ -15,6 +15,7 @@ import UsersAdminPage from './pages/UsersAdminPage'
 import OptimizePage from './pages/OptimizePage'
 import MaterialsPage from './pages/MaterialsPage'
 import MachinesPage from './pages/MachinesPage'
+import OrderCatalogPage from './pages/OrderCatalogPage'
 import ConfeccionDashboard from './pages/ConfeccionDashboard'
 import ConfeccionGanttPage from './pages/ConfeccionGanttPage'
 import ConfeccionOrders from './pages/ConfeccionOrders'
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="importar" element={<ImportPage />} />
               <Route path="terminadas" element={<CompletedOrders />} />
               <Route path="materiales" element={<MaterialsPage />} />
+              <Route path="materiales/catalogo" element={<OrderCatalogPage />} />
               <Route path="maquinas" element={<MachinesPage />} />
               <Route path="confeccion" element={<ConfeccionDashboard />} />
               <Route path="confeccion/gantt" element={<ConfeccionGanttPage />} />
