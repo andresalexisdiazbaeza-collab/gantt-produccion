@@ -169,7 +169,7 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
                   <select style={inp} value={art.titleMaterialId} onChange={(e) => onTitleMaterialChange(idx, e.target.value)}>
                     <option value="">{t('fieldSelect')}</option>
                     {catalog?.title_materials.map((tm) => (
-                      <option key={tm.id} value={tm.id}>{tm.titulo}</option>
+                      <option key={tm.id} value={tm.id}>{tm.titulo} — {tm.material}</option>
                     ))}
                   </select>
                 </Field>
