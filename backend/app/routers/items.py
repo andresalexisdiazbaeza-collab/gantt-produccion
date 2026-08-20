@@ -11,7 +11,7 @@ from ..deps import get_current_user
 from ..fingerprint import build_fingerprint
 from ..models import ItemStatus, MachineConfig, ProductionItem, User
 from ..permissions import can_modify_item_field, can_modify_module
-from ..schemas import ItemOut, ItemUpdate, ProductionItemCreate
+from ..schemas import BatchCreateResult, ItemOut, ItemUpdate, ProductionItemCreate, ProductionOrderBatchCreate
 from ..services import item_to_dict, recalculate_item
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -113,6 +113,68 @@ def create_item(
     db.commit()
     db.refresh(item)
     return item_to_dict(item)
+
+
+def _create_item_from_data(db: Session, data: dict) -> ProductionItem:
+    fp = build_fingerprint(data)
+    if db.query(ProductionItem).filter(ProductionItem.fingerprint == fp).first():
+        raise HTTPException(409, f"Ya existe un artículo con esos datos: {data.get('titulo') or data.get('order_number')}")
+    item = ProductionItem(
+        fingerprint=fp,
+        status=ItemStatus.ACTIVA.value,
+        order_number=data["order_number"],
+        customer=data.get("customer"),
+        raw_material=data.get("raw_material"),
+        titulo=data.get("titulo"),
+        color=data.get("color"),
+        treatment=data.get("treatment"),
+        order_type=data.get("order_type"),
+        braiding=data.get("braiding"),
+        model=data.get("model"),
+        matriz_mm=data.get("matriz_mm"),
+        measure=data.get("measure"),
+        meshes=data.get("meshes"),
+        knot=data.get("knot"),
+        pieces=data.get("pieces"),
+        piece_length=data.get("piece_length"),
+        kg_totales=data.get("kg_totales"),
+        delivery_date=data.get("delivery_date"),
+        machine_id=data.get("machine_id"),
+        start_date=data.get("start_date"),
+        comments=data.get("comments"),
+        notes=data.get("notes"),
+    )
+    if data.get("machine_id"):
+        machine = db.get(MachineConfig, data["machine_id"])
+        if machine:
+            item.mts_per_shift = machine.mts_per_shift
+    recalculate_item(db, item)
+    db.add(item)
+    return item
+
+
+@router.post("/batch", response_model=BatchCreateResult, status_code=201)
+def create_order_batch(
+    data: ProductionOrderBatchCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not can_modify_module(user, "active_orders"):
+        raise HTTPException(403, "No tienes permiso para crear órdenes")
+    if not data.articles:
+        raise HTTPException(400, "Debe incluir al menos un artículo")
+    created: list[ProductionItem] = []
+    header = data.model_dump(exclude={"articles"})
+    for art in data.articles:
+        payload = {**header, **art.model_dump()}
+        created.append(_create_item_from_data(db, payload))
+    db.commit()
+    for item in created:
+        db.refresh(item)
+    return BatchCreateResult(
+        created_count=len(created),
+        items=[item_to_dict(i) for i in created],
+    )
 
 
 @router.get("", response_model=list[ItemOut])

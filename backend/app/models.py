@@ -45,6 +45,24 @@ class MaterialConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class TitleMaterialCatalog(Base):
+    """Title ↔ material pairs loaded from Excel (col A title, col B material)."""
+    __tablename__ = "title_material_catalog"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    titulo: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    material: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+
+class OrderFieldOption(Base):
+    """Dropdown values for manual order fields."""
+    __tablename__ = "order_field_options"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    value: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
 class MachineConfig(Base):
     __tablename__ = "machine_configs"
 

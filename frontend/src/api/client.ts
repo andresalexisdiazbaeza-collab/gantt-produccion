@@ -186,6 +186,27 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
+  createItemsBatch: (data: Record<string, unknown>) =>
+    request<{ created_count: number; items: ProductionItem[] }>('/items/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  getOrderCatalog: () => request<import('../types').OrderCatalog>('/catalog'),
+  importTitleMaterialCatalog: async (file: File, replace = false) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/catalog/title-materials/import?replace=${replace}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(typeof err.detail === 'string' ? err.detail : 'Error al importar catálogo')
+    }
+    return res.json() as Promise<{ imported_count: number; total_count: number; parsed_rows: number }>
+  },
   updateItem: (id: number, data: {
     machine_id?: number | null
     start_date?: string | null

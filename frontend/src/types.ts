@@ -70,6 +70,23 @@ export interface Material {
   updated_at?: string
 }
 
+export interface TitleMaterialEntry {
+  id: number
+  titulo: string
+  material: string
+}
+
+export interface OrderCatalog {
+  title_materials: TitleMaterialEntry[]
+  options: {
+    braiding: string[]
+    model: string[]
+    meshes: string[]
+    knot: string[]
+    order_type: string[]
+  }
+}
+
 export interface Machine {
   id: number
   name: string

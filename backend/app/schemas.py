@@ -78,6 +78,34 @@ class ProductionItemCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class ProductionArticleLine(BaseModel):
+    titulo: Optional[str] = None
+    raw_material: Optional[str] = None
+    color: Optional[str] = None
+    treatment: Optional[str] = None
+    order_type: Optional[str] = None
+    braiding: Optional[str] = None
+    model: Optional[str] = None
+    matriz_mm: Optional[float] = None
+    measure: Optional[str] = None
+    meshes: Optional[float] = None
+    knot: Optional[float] = None
+    pieces: Optional[float] = None
+    piece_length: Optional[float] = None
+    kg_totales: Optional[float] = None
+
+
+class ProductionOrderBatchCreate(BaseModel):
+    order_number: str
+    customer: Optional[str] = None
+    delivery_date: Optional[date] = None
+    machine_id: Optional[int] = None
+    start_date: Optional[date] = None
+    comments: Optional[str] = None
+    notes: Optional[str] = None
+    articles: List[ProductionArticleLine]
+
+
 class ItemUpdate(BaseModel):
     machine_id: Optional[int] = None
     start_date: Optional[date] = None
@@ -131,6 +159,11 @@ class ItemOut(BaseModel):
     created_at: Optional[datetime]
     completed_at: Optional[datetime]
     model_config = ConfigDict(from_attributes=True)
+
+
+class BatchCreateResult(BaseModel):
+    created_count: int
+    items: List[ItemOut]
 
 
 class ImportResult(BaseModel):

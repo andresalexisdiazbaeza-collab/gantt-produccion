@@ -114,7 +114,7 @@ export default function ActiveOrders() {
         <NewOrderModal
           machines={machines}
           onClose={() => setShowNewOrder(false)}
-          onCreated={(item) => setItems(prev => [item, ...prev])}
+          onCreated={(items) => setItems((prev) => [...items, ...prev])}
         />
       )}
       <div className="flex items-center justify-between">
