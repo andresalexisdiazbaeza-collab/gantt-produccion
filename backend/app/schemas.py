@@ -93,14 +93,14 @@ class ProductionArticleLine(BaseModel):
     pieces: Optional[float] = None
     piece_length: Optional[float] = None
     kg_totales: Optional[float] = None
+    delivery_date: Optional[date] = None
+    machine_id: Optional[int] = None
+    start_date: Optional[date] = None
 
 
 class ProductionOrderBatchCreate(BaseModel):
     order_number: str
     customer: Optional[str] = None
-    delivery_date: Optional[date] = None
-    machine_id: Optional[int] = None
-    start_date: Optional[date] = None
     comments: Optional[str] = None
     notes: Optional[str] = None
     articles: List[ProductionArticleLine]

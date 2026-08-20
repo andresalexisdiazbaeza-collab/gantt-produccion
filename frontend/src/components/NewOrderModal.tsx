@@ -25,6 +25,9 @@ interface ArticleLine {
   pieces: string
   piece_length: string
   kg_totales: string
+  delivery_date: string
+  machine_id: string
+  start_date: string
 }
 
 const EMPTY_ARTICLE = (): ArticleLine => ({
@@ -43,6 +46,9 @@ const EMPTY_ARTICLE = (): ArticleLine => ({
   pieces: '',
   piece_length: '',
   kg_totales: '',
+  delivery_date: '',
+  machine_id: '',
+  start_date: '',
 })
 
 export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
@@ -50,17 +56,11 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
   const [catalog, setCatalog] = useState<OrderCatalog | null>(null)
   const [orderNumber, setOrderNumber] = useState('')
   const [customer, setCustomer] = useState('')
-  const [deliveryDate, setDeliveryDate] = useState('')
-  const [machineId, setMachineId] = useState('')
-  const [startDate, setStartDate] = useState('')
   const [comments, setComments] = useState('')
   const [notes, setNotes] = useState('')
   const [articles, setArticles] = useState<ArticleLine[]>([EMPTY_ARTICLE()])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [importMsg, setImportMsg] = useState('')
-  const [importReplace, setImportReplace] = useState(false)
-  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     api.getOrderCatalog().then(setCatalog).catch((e) => setError(e.message))
@@ -91,22 +91,6 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
     return Number.isNaN(n) ? undefined : n
   }
 
-  const handleImport = async (file: File) => {
-    setImporting(true)
-    setImportMsg('')
-    setError('')
-    try {
-      const res = await api.importTitleMaterialCatalog(file, importReplace)
-      setImportMsg(t('catalogImportSuccess', { count: res.imported_count, total: res.total_count }))
-      const fresh = await api.getOrderCatalog()
-      setCatalog(fresh)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : t('error'))
-    } finally {
-      setImporting(false)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!orderNumber.trim()) return
@@ -116,9 +100,6 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
       const payload = {
         order_number: orderNumber.trim(),
         customer: customer.trim() || undefined,
-        delivery_date: deliveryDate || undefined,
-        machine_id: machineId ? parseInt(machineId) : undefined,
-        start_date: startDate || undefined,
         comments: comments.trim() || undefined,
         notes: notes.trim() || undefined,
         articles: articles.map((a) => ({
@@ -136,6 +117,9 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
           pieces: parseNum(a.pieces),
           piece_length: parseNum(a.piece_length),
           kg_totales: parseNum(a.kg_totales),
+          delivery_date: a.delivery_date || undefined,
+          machine_id: a.machine_id ? parseInt(a.machine_id) : undefined,
+          start_date: a.start_date || undefined,
         })),
       }
       const res = await api.createItemsBatch(payload)
@@ -156,29 +140,6 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
         <h2 style={{ margin: '0 0 1rem' }}>{t('newOrderTitle')}</h2>
         {error && <div style={errorBox}>{error}</div>}
 
-        <div style={importBox}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t('catalogImportTitleMaterial')}</div>
-          <p style={{ fontSize: 12, color: '#888', margin: '0 0 8px' }}>{t('catalogImportHint')}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <input
-              type="file"
-              accept=".xlsx,.xlsm,.xls"
-              disabled={importing}
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void handleImport(f)
-                e.target.value = ''
-              }}
-              style={{ fontSize: 12, color: '#ccc' }}
-            />
-            <label style={{ fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input type="checkbox" checked={importReplace} onChange={(e) => setImportReplace(e.target.checked)} />
-              {t('catalogImportReplace')}
-            </label>
-          </div>
-          {importMsg && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>{importMsg}</p>}
-        </div>
-
         <form onSubmit={handleSubmit}>
           <h3 style={sectionTitle}>{t('newOrderHeader')}</h3>
           <div style={grid}>
@@ -187,20 +148,6 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
             </Field>
             <Field label={t('fieldCustomer')}>
               <input style={inp} value={customer} onChange={(e) => setCustomer(e.target.value)} />
-            </Field>
-            <Field label={t('fieldDeliveryDate')}>
-              <input style={inp} type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
-            </Field>
-            <Field label={t('fieldMachine')}>
-              <select style={inp} value={machineId} onChange={(e) => setMachineId(e.target.value)}>
-                <option value="">{t('fieldSelect')}</option>
-                {machines.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label={t('fieldStartDate')}>
-              <input style={inp} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </Field>
           </div>
 
@@ -218,16 +165,30 @@ export default function NewOrderModal({ machines, onClose, onCreated }: Props) {
                 )}
               </div>
               <div style={grid}>
-                <Field label={`${t('fieldTitulo')} / ${t('fieldRawMaterial')}`}>
+                <Field label={t('fieldTitulo')}>
                   <select style={inp} value={art.titleMaterialId} onChange={(e) => onTitleMaterialChange(idx, e.target.value)}>
                     <option value="">{t('fieldSelect')}</option>
                     {catalog?.title_materials.map((tm) => (
-                      <option key={tm.id} value={tm.id}>{tm.titulo} — {tm.material}</option>
+                      <option key={tm.id} value={tm.id}>{tm.titulo}</option>
                     ))}
                   </select>
                 </Field>
                 <Field label={t('fieldRawMaterial')}>
-                  <input style={{ ...inp, opacity: 0.85 }} value={art.raw_material} readOnly />
+                  <input style={{ ...inp, opacity: 0.85 }} value={art.raw_material} readOnly placeholder="—" />
+                </Field>
+                <Field label={t('fieldDeliveryDate')}>
+                  <input style={inp} type="date" value={art.delivery_date} onChange={(e) => updateArticle(idx, { delivery_date: e.target.value })} />
+                </Field>
+                <Field label={t('fieldMachine')}>
+                  <select style={inp} value={art.machine_id} onChange={(e) => updateArticle(idx, { machine_id: e.target.value })}>
+                    <option value="">{t('fieldSelect')}</option>
+                    {machines.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={t('fieldStartDate')}>
+                  <input style={inp} type="date" value={art.start_date} onChange={(e) => updateArticle(idx, { start_date: e.target.value })} />
                 </Field>
                 <Field label={t('fieldOrderType')}>
                   <select style={inp} value={art.order_type} onChange={(e) => updateArticle(idx, { order_type: e.target.value })}>
@@ -343,9 +304,6 @@ const btnLink: React.CSSProperties = {
 }
 const errorBox: React.CSSProperties = {
   background: '#3d1a1a', color: '#f87171', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 13,
-}
-const importBox: React.CSSProperties = {
-  background: '#161b27', border: '1px dashed #445', borderRadius: 8, padding: '10px 12px', marginBottom: 14,
 }
 const sectionTitle: React.CSSProperties = {
   fontSize: 14, fontWeight: 700, color: '#cbd5e1', margin: '0 0 8px',
