@@ -71,8 +71,8 @@ export const translations = {
     colActions: 'Acciones',
     btnComplete: 'Terminar',
     btnDeleteAll: 'Borrar todas las órdenes',
-    confirmDeleteAll: '¿Borrar TODAS las órdenes (activas y terminadas)? Esta acción no se puede deshacer. Después deberás importar de nuevo el NuevoFormato.',
-    deleteAllSuccess: 'Se eliminaron {{count}} órdenes. Ve a Importar para cargar el archivo de nuevo.',
+    confirmDeleteAll: '¿Borrar todas las órdenes activas? Las terminadas se conservan en el módulo Terminadas. Después deberás importar de nuevo el NuevoFormato.',
+    deleteAllSuccess: 'Se eliminaron {{count}} órdenes activas. Las terminadas se mantienen. Ve a Importar para cargar el archivo de nuevo.',
 
     activeOrdersTitle: 'Órdenes activas',
     activeOrdersEmpty: 'No hay órdenes activas. Importa un archivo NuevoFormato.',
@@ -417,8 +417,8 @@ export const translations = {
     colActions: 'Actions',
     btnComplete: 'Complete',
     btnDeleteAll: 'Delete all orders',
-    confirmDeleteAll: 'Delete ALL orders (active and completed)? This cannot be undone. You will need to import NuevoFormato again.',
-    deleteAllSuccess: 'Deleted {{count}} orders. Go to Import to load the file again.',
+    confirmDeleteAll: 'Delete all active orders? Completed orders stay in the Completed module. You will need to import NuevoFormato again.',
+    deleteAllSuccess: 'Deleted {{count}} active orders. Completed orders were kept. Go to Import to load the file again.',
 
     activeOrdersTitle: 'Active orders',
     activeOrdersEmpty: 'No active orders. Import a NuevoFormato file.',
@@ -763,8 +763,8 @@ export const translations = {
     colActions: 'Akcie',
     btnComplete: 'Dokončiť',
     btnDeleteAll: 'Vymazať všetky objednávky',
-    confirmDeleteAll: 'Vymazať VŠETKY objednávky (aktívne aj dokončené)? Túto akciu nemožno vrátiť. Potom budete musieť znova importovať NuevoFormato.',
-    deleteAllSuccess: 'Vymazaných {{count}} objednávok. Prejdite na Import a načítajte súbor znova.',
+    confirmDeleteAll: 'Vymazať všetky aktívne objednávky? Dokončené zostanú v module Dokončené. Potom budete musieť znova importovať NuevoFormato.',
+    deleteAllSuccess: 'Vymazaných {{count}} aktívnych objednávok. Dokončené zostali zachované. Prejdite na Import a načítajte súbor znova.',
 
     activeOrdersTitle: 'Aktívne objednávky',
     activeOrdersEmpty: 'Žiadne aktívne objednávky. Importujte súbor NuevoFormato.',
@@ -1109,8 +1109,8 @@ export const translations = {
     colActions: 'Azioni',
     btnComplete: 'Completa',
     btnDeleteAll: 'Elimina tutti gli ordini',
-    confirmDeleteAll: 'Eliminare TUTTI gli ordini (attivi e completati)? Questa azione non può essere annullata. Dovrai reimportare NuevoFormato.',
-    deleteAllSuccess: 'Eliminati {{count}} ordini. Vai a Importa per caricare di nuovo il file.',
+    confirmDeleteAll: 'Eliminare tutti gli ordini attivi? I completati restano nel modulo Completati. Dovrai reimportare NuevoFormato.',
+    deleteAllSuccess: 'Eliminati {{count}} ordini attivi. I completati sono stati conservati. Vai a Importa per caricare di nuovo il file.',
 
     activeOrdersTitle: 'Ordini attivi',
     activeOrdersEmpty: 'Nessun ordine attivo. Importa un file NuevoFormato.',

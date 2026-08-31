@@ -25,10 +25,10 @@ export default function Layout() {
     { to: '/ordenes', label: t('navActiveOrders'), module: 'active_orders' },
     { to: '/optimizar', label: t('navOptimize'), module: 'optimize', highlight: true },
     { to: '/importar', label: t('navImport'), module: 'import' },
+    { to: '/terminadas', label: t('navCompleted'), module: 'completed' },
   ]
 
   const productionOther: NavItem[] = [
-    { to: '/terminadas', label: t('navCompleted'), module: 'completed' },
     { to: '/usuarios', label: t('navUsers'), module: 'users' },
     { to: '/materiales', label: t('navMaterials'), module: 'materials' },
     { to: '/materiales/catalogo', label: t('navCatalogAdmin'), module: 'materials' },

@@ -193,6 +193,18 @@ def list_items(
     if customer:
         q = q.filter(ProductionItem.customer.ilike(f"%{customer}%"))
     items = q.order_by(ProductionItem.order_number, ProductionItem.id).all()
+    if status == ItemStatus.TERMINADA.value:
+        seen: dict[str, ProductionItem] = {}
+        for item in items:
+            prev = seen.get(item.fingerprint)
+            if not prev:
+                seen[item.fingerprint] = item
+                continue
+            prev_at = prev.completed_at or prev.created_at
+            cur_at = item.completed_at or item.created_at
+            if cur_at and (not prev_at or cur_at > prev_at):
+                seen[item.fingerprint] = item
+        items = sorted(seen.values(), key=lambda i: (i.order_number, i.id))
     return [item_to_dict(i) for i in items]
 
 

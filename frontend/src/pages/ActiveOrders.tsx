@@ -93,7 +93,7 @@ export default function ActiveOrders() {
     setError('')
     setSuccess('')
     try {
-      const { deleted_count } = await api.deleteAllItems()
+      const { deleted_count } = await api.deleteAllItems('activa')
       setItems([])
       setSuccess(t('deleteAllSuccess', { count: deleted_count }))
       navigate('/importar')

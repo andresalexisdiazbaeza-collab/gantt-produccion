@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -31,6 +32,17 @@ DEFAULT_GANTT_PATH = Path(
         "/Users/andresdiaz/Desktop/Production gantt2.xlsx",
     )
 )
+
+_COMPLETED_STATUS_VALUES = frozenset({
+    "terminada", "terminado", "completed", "complete", "done",
+    "cerrada", "cerrado", "closed", "finalizada", "finalizado",
+})
+
+
+def _is_completed_source_status(status: Optional[str]) -> bool:
+    if not status:
+        return False
+    return status.strip().lower() in _COMPLETED_STATUS_VALUES
 
 
 def _build_item_lookup(db: Session) -> Tuple[Dict[str, ProductionItem], Dict[str, ProductionItem], Dict[str, ProductionItem]]:
@@ -193,6 +205,7 @@ async def import_nuevo_formato(
 
     for row in rows:
         fp = build_fingerprint(row)
+        row_completed = _is_completed_source_status(row.get("source_status"))
 
         if fp in seen_in_batch:
             skipped_count += 1
@@ -203,7 +216,11 @@ async def import_nuevo_formato(
 
         if existing:
             seen_in_batch.add(fp)
-            if existing.status in (ItemStatus.ACTIVA.value, ItemStatus.TERMINADA.value):
+            if existing.status == ItemStatus.TERMINADA.value:
+                skipped_count += 1
+                details.append(f"Omitido (ya terminada): orden {row['order_number']}")
+                continue
+            if existing.status == ItemStatus.ACTIVA.value:
                 changed = False
                 if row.get("delivered") is not None and existing.delivered != row["delivered"]:
                     existing.delivered = row["delivered"]
@@ -211,7 +228,13 @@ async def import_nuevo_formato(
                 if row.get("delivery_date") and existing.delivery_date != row["delivery_date"]:
                     existing.delivery_date = row["delivery_date"]
                     changed = True
-                if changed and existing.status == ItemStatus.ACTIVA.value:
+                if row_completed:
+                    existing.status = ItemStatus.TERMINADA.value
+                    existing.completed_at = datetime.utcnow()
+                    existing.source_status = row.get("source_status")
+                    updated_count += 1
+                    details.append(f"Marcada terminada: orden {row['order_number']}")
+                elif changed:
                     recalculate_item(db, existing)
                     updated_count += 1
                     details.append(f"Actualizado: orden {row['order_number']} ({row.get('color')})")
@@ -220,18 +243,22 @@ async def import_nuevo_formato(
                     details.append(f"Omitido (ya existe): orden {row['order_number']}")
             continue
 
+        status = ItemStatus.TERMINADA.value if row_completed else ItemStatus.ACTIVA.value
         item = ProductionItem(
             fingerprint=fp,
-            status=ItemStatus.ACTIVA.value,
+            status=status,
             **{k: row.get(k) for k in FIELDS},
         )
+        if row_completed:
+            item.completed_at = datetime.utcnow()
         item.shrinking = get_shrinking(db, item.raw_material)
         recalculate_item(db, item)
         db.add(item)
         db.flush()
         seen_in_batch.add(fp)
         new_count += 1
-        details.append(f"Nuevo: orden {row['order_number']} - {row.get('customer')} ({row.get('color')})")
+        label = "Terminada" if row_completed else "Nuevo"
+        details.append(f"{label}: orden {row['order_number']} - {row.get('customer')} ({row.get('color')})")
 
     log = ImportLog(
         filename=file.filename or "unknown.xlsx",
