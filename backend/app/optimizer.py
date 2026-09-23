@@ -38,6 +38,7 @@ class ScheduledSlot:
     setup_shifts: int
     is_late: bool
     days_late: int
+    locked: bool = False
 
 
 @dataclass
@@ -128,24 +129,48 @@ def _score_candidate(
     return score, start, finish, setup
 
 
-def optimize_machine_sequence(items: List[SchedulableItem], anchor: date) -> List[ScheduledSlot]:
-    if not items:
-        return []
+def _slot_for(
+    item: SchedulableItem,
+    start: date,
+    finish: date,
+    setup: int,
+    *,
+    locked: bool = False,
+) -> ScheduledSlot:
+    late = _lateness_days(finish, item.delivery_date)
+    return ScheduledSlot(
+        item=item,
+        sequence=0,
+        start_date=start,
+        finish_date=finish,
+        setup_shifts=setup,
+        is_late=late > 0,
+        days_late=late,
+        locked=locked,
+    )
 
-    shifts_per_day = items[0].shifts_per_day or 2
-    remaining = [i for i in items if i.working_days and i.working_days > 0]
-    remaining.sort(key=lambda i: (i.delivery_date or date.max, i.order_number))
 
+def _locked_slot(item: SchedulableItem) -> ScheduledSlot:
+    start = item.start_date or date.min
+    finish = calc_finish_date(start, item.working_days) or start
+    return _slot_for(item, start, finish, 0, locked=True)
+
+
+def _greedy_sequence(
+    items: List[SchedulableItem],
+    cursor: date,
+    prev: Optional[SchedulableItem],
+    shifts_per_day: int,
+) -> List[ScheduledSlot]:
+    """Place every item sequentially from cursor, minimizing lateness and changeovers."""
+    remaining = sorted(items, key=lambda i: (i.delivery_date or date.max, i.order_number, i.id))
     slots: List[ScheduledSlot] = []
-    cursor = anchor
-    prev: Optional[SchedulableItem] = None
-    seq = 0
 
     while remaining:
         best_idx = 0
         best_score = float("inf")
-        best_start = anchor
-        best_finish = anchor
+        best_start = cursor
+        best_finish = cursor
         best_setup = 0
 
         for idx, candidate in enumerate(remaining):
@@ -158,23 +183,134 @@ def optimize_machine_sequence(items: List[SchedulableItem], anchor: date) -> Lis
                 best_setup = setup
 
         item = remaining.pop(best_idx)
-        seq += 1
-        late = _lateness_days(best_finish, item.delivery_date)
-        slots.append(
-            ScheduledSlot(
-                item=item,
-                sequence=seq,
-                start_date=best_start,
-                finish_date=best_finish,
-                setup_shifts=best_setup,
-                is_late=late > 0,
-                days_late=late,
-            )
-        )
+        slots.append(_slot_for(item, best_start, best_finish, best_setup))
         cursor = best_finish
         prev = item
 
     return slots
+
+
+def _group_fixed_blocks(fixed_slots: List[ScheduledSlot]) -> List[List[ScheduledSlot]]:
+    """Group anchored jobs that overlap or touch into busy blocks, in start order."""
+    ordered = sorted(fixed_slots, key=lambda s: (s.start_date, s.finish_date, s.item.order_number, s.item.id))
+    blocks: List[List[ScheduledSlot]] = []
+    for slot in ordered:
+        if not blocks:
+            blocks.append([slot])
+            continue
+        block_end = max(s.finish_date for s in blocks[-1])
+        if slot.start_date > block_end:
+            blocks.append([slot])
+        else:
+            blocks[-1].append(slot)
+    return blocks
+
+
+def _fits_before(candidate: SchedulableItem, start: date, finish: date, limit: date, next_item: SchedulableItem, shifts_per_day: int) -> bool:
+    """True when candidate can run and still leave the next anchored job on its fixed start."""
+    if start >= limit:
+        return False
+    setup_after = setup_days_between(candidate, next_item, shifts_per_day)
+    ready = add_workdays(finish, setup_after) if setup_after else finish
+    return ready <= limit
+
+
+def _fill_gap(
+    remaining: List[SchedulableItem],
+    cursor: date,
+    prev: Optional[SchedulableItem],
+    limit: date,
+    next_item: SchedulableItem,
+    shifts_per_day: int,
+) -> List[ScheduledSlot]:
+    """Place as many free jobs as fit strictly inside [cursor, limit)."""
+    placed: List[ScheduledSlot] = []
+    while remaining:
+        best_idx: Optional[int] = None
+        best_score = float("inf")
+        best_start = cursor
+        best_finish = cursor
+        best_setup = 0
+
+        for idx, candidate in enumerate(remaining):
+            score, start, finish, setup = _score_candidate(prev, candidate, cursor, shifts_per_day)
+            if not _fits_before(candidate, start, finish, limit, next_item, shifts_per_day):
+                continue
+            if score < best_score:
+                best_score = score
+                best_idx = idx
+                best_start = start
+                best_finish = finish
+                best_setup = setup
+
+        if best_idx is None:
+            break
+
+        item = remaining.pop(best_idx)
+        placed.append(_slot_for(item, best_start, best_finish, best_setup))
+        cursor = best_finish
+        prev = item
+
+    return placed
+
+
+def _schedule_around_anchors(
+    anchored: List[SchedulableItem],
+    free: List[SchedulableItem],
+    shifts_per_day: int,
+) -> List[ScheduledSlot]:
+    """Keep dated orders fixed and schedule undated orders in the gaps and after them."""
+    fixed_slots = [_locked_slot(item) for item in anchored]
+    blocks = _group_fixed_blocks(fixed_slots)
+    remaining = sorted(free, key=lambda i: (i.delivery_date or date.max, i.order_number, i.id))
+    placed: List[ScheduledSlot] = []
+
+    for idx, block in enumerate(blocks):
+        block_end = max(s.finish_date for s in block)
+        prev_slot = max(block, key=lambda s: (s.finish_date, s.start_date, s.item.order_number, s.item.id))
+        prev: Optional[SchedulableItem] = prev_slot.item
+
+        if idx + 1 < len(blocks):
+            next_block = blocks[idx + 1]
+            limit = min(s.start_date for s in next_block)
+            next_item = min(next_block, key=lambda s: (s.start_date, s.item.order_number, s.item.id)).item
+            gap_slots = _fill_gap(remaining, block_end, prev, limit, next_item, shifts_per_day)
+            placed.extend(gap_slots)
+        else:
+            placed.extend(_greedy_sequence(remaining, block_end, prev, shifts_per_day))
+            remaining = []
+
+    return fixed_slots + placed
+
+
+def _finalize(slots: List[ScheduledSlot]) -> List[ScheduledSlot]:
+    slots.sort(key=lambda s: (s.start_date, 0 if s.locked else 1, s.item.order_number, s.item.id))
+    prev: Optional[SchedulableItem] = None
+    for seq, slot in enumerate(slots, 1):
+        slot.sequence = seq
+        slot.setup_shifts = setup_shifts_between(prev, slot.item) if prev else 0
+        prev = slot.item
+    return slots
+
+
+def optimize_machine_sequence(items: List[SchedulableItem], anchor: date) -> List[ScheduledSlot]:
+    """Schedule a machine.
+
+    Orders that already have a start date are locked anchors: their dates are not
+    moved. Undated orders are placed in the gaps between those anchors and after
+    the last one, so the plan begins at the already-dated work. When nothing is
+    dated, every order is sequenced from ``anchor``.
+    """
+    workable = [i for i in items if i.working_days and i.working_days > 0]
+    if not workable:
+        return []
+
+    shifts_per_day = workable[0].shifts_per_day or 2
+    anchored = [i for i in workable if i.start_date]
+    free = [i for i in workable if not i.start_date]
+    if not anchored:
+        return _finalize(_greedy_sequence(free, anchor, None, shifts_per_day))
+    return _finalize(_schedule_around_anchors(anchored, free, shifts_per_day))
 
 
 def schedule_current(items: List[SchedulableItem], anchor: date) -> List[ScheduledSlot]:
@@ -238,6 +374,7 @@ def slot_to_dict(slot: ScheduledSlot) -> Dict[str, Any]:
         "setup_shifts": slot.setup_shifts,
         "is_late": slot.is_late,
         "days_late": slot.days_late,
+        "locked": slot.locked,
     }
 
 

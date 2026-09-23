@@ -123,6 +123,13 @@ def build_optimization_preview(
         all_current_slots.extend(current_slots)
         all_optimized_slots.extend(optimized_slots)
 
+    anchored_count = sum(1 for group in by_machine.values() for item in group if item.start_date)
+    if anchored_count:
+        warnings.append(
+            f"{anchored_count} órdenes con fecha de inicio se mantienen fijas; "
+            "las demás se programan en los huecos y después de ellas."
+        )
+
     if unassigned:
         warnings.append(f"{len(unassigned)} ítems sin máquina asignada (no incluidos)")
 
@@ -156,7 +163,9 @@ def apply_optimized_schedule(db: Session, global_anchor: Optional[date] = None) 
             item = db.get(ProductionItem, slot["id"])
             if not item:
                 continue
-            item.start_date = date.fromisoformat(slot["start_date"])
+            # Dated orders are anchors: keep the start the user already set.
+            if not (slot.get("locked") and item.start_date is not None):
+                item.start_date = date.fromisoformat(slot["start_date"])
             recalculate_item(db, item)
             applied += 1
 

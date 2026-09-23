@@ -15,6 +15,7 @@ export interface OptimizedSlot {
   setup_shifts: number
   is_late: boolean
   days_late: number
+  locked?: boolean
 }
 
 export interface MachinePlan {
