@@ -208,6 +208,31 @@ def list_items(
     return [item_to_dict(i) for i in items]
 
 
+@router.post("/clear-dates")
+def clear_start_dates(
+    status: Optional[str] = Query("activa", description="activa"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Clear production start dates (and the calculated finish) on active orders."""
+    if not can_modify_item_field(user, "start_date"):
+        raise HTTPException(403, "No tienes permiso para modificar start_date")
+    if status and status != ItemStatus.ACTIVA.value:
+        raise HTTPException(400, "Solo se pueden borrar fechas de órdenes activas")
+
+    items = (
+        db.query(ProductionItem)
+        .filter(ProductionItem.status == ItemStatus.ACTIVA.value)
+        .filter(ProductionItem.start_date.isnot(None))
+        .all()
+    )
+    for item in items:
+        item.start_date = None
+        recalculate_item(db, item)
+    db.commit()
+    return {"cleared_count": len(items)}
+
+
 @router.delete("/all")
 def delete_all_items(
     status: Optional[str] = Query(None, description="activa | terminada | omitir para todas"),

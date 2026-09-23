@@ -21,6 +21,7 @@ export default function ActiveOrders() {
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState<number | null>(null)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [clearingDates, setClearingDates] = useState(false)
   const [showNewOrder, setShowNewOrder] = useState(false)
 
   const load = useCallback(() => {
@@ -85,6 +86,22 @@ export default function ActiveOrders() {
     const updated = await api.completeItem(id)
     setItems((prev) => prev.filter((i) => i.id !== id))
     void updated
+  }
+
+  const clearAllDates = async () => {
+    if (!canModifyItem('start_date') || !confirm(t('confirmClearAllDates'))) return
+    setClearingDates(true)
+    setError('')
+    setSuccess('')
+    try {
+      const { cleared_count } = await api.clearAllDates('activa')
+      setSuccess(t('clearAllDatesSuccess', { count: cleared_count }))
+      load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : t('error'))
+    } finally {
+      setClearingDates(false)
+    }
   }
 
   const deleteAll = async () => {
@@ -185,7 +202,19 @@ export default function ActiveOrders() {
               <th className="p-2">{t('colMetersProduced')}</th>
               <th className="p-2">{t('colRemainingM')}</th>
               <th className="p-2">{t('colMachine')}</th>
-              <th className="p-2">{t('colStart')}</th>
+              <th className="p-2 whitespace-nowrap">
+                <div>{t('colStart')}</div>
+                {canModifyItem('start_date') && (
+                  <button
+                    type="button"
+                    onClick={clearAllDates}
+                    disabled={clearingDates || !items.some((i) => i.start_date)}
+                    className="mt-1 block text-[11px] font-normal text-red-600 hover:underline disabled:opacity-40 disabled:no-underline"
+                  >
+                    {clearingDates ? '...' : t('btnClearAllDates')}
+                  </button>
+                )}
+              </th>
               <th className="p-2">{t('colFinish')}</th>
               <th className="p-2">{t('colDays')}</th>
               <th className="p-2">{t('colDelivery')}</th>
@@ -271,13 +300,25 @@ export default function ActiveOrders() {
                 </td>
                 <td className="p-2">
                   {canModifyItem('start_date') ? (
-                    <input
-                      type="date"
-                      className="border rounded px-2 py-1 text-xs"
-                      value={item.start_date ?? ''}
-                      disabled={saving === item.id}
-                      onChange={(e) => update(item.id, { start_date: e.target.value || null })}
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="date"
+                        className="border rounded px-2 py-1 text-xs"
+                        value={item.start_date ?? ''}
+                        disabled={saving === item.id}
+                        onChange={(e) => update(item.id, { start_date: e.target.value || null })}
+                      />
+                      {item.start_date && (
+                        <button
+                          type="button"
+                          onClick={() => update(item.id, { start_date: null })}
+                          disabled={saving === item.id}
+                          className="text-[11px] text-red-600 hover:underline whitespace-nowrap disabled:opacity-50"
+                        >
+                          {t('btnClearDate')}
+                        </button>
+                      )}
+                    </div>
                   ) : (item.start_date ?? t('noData'))}
                 </td>
                 <td className="p-2 text-xs">{item.finish_date ?? t('noData')}</td>

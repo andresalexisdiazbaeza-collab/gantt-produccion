@@ -206,7 +206,14 @@ export default function OptimizePage() {
                             <span className="text-amber-600 font-medium">{item.setup_shifts} turnos</span>
                           ) : '—'}
                         </td>
-                        <td className="p-2">{item.start_date}</td>
+                        <td className="p-2 whitespace-nowrap">
+                          {item.start_date}
+                          {item.locked && (
+                            <span className="ml-1 text-[10px] uppercase tracking-wide text-sky-700 bg-sky-50 border border-sky-200 rounded px-1">
+                              {t('optimizeLocked')}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-2">{item.finish_date}</td>
                         <td className="p-2">{item.delivery_date ?? '—'}</td>
                         <td className="p-2">

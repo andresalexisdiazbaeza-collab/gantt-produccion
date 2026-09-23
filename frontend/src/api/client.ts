@@ -245,6 +245,11 @@ export const api = {
       `/items/all${status ? `?status=${status}` : ''}`,
       { method: 'DELETE' },
     ),
+  clearAllDates: (status = 'activa') =>
+    request<{ cleared_count: number }>(
+      `/items/clear-dates?status=${status}`,
+      { method: 'POST' },
+    ),
   reactivateItem: (id: number) =>
     request<ProductionItem>(`/items/${id}/reactivate`, { method: 'POST' }),
 
